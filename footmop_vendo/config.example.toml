@@ -1,0 +1,73 @@
+# Footmop ni Kuya J - configuration
+# Copy to /etc/footmop/config.toml (install.sh does this) and edit.
+# Every key is optional; anything left out uses the built-in default.
+# Price and stock are also editable from the admin screen (those values are
+# stored in the database and survive reboots).
+
+[machine]
+name = "Footmop ni Kuya J"
+currency = "₱"
+price_per_item = 5           # first-boot default (then edit in Admin > Price); multiple of coin.value
+max_per_transaction = 5
+
+[timing]
+inactivity_timeout_s = 60    # idle time in Quantity/Payment before "Still there?"
+warning_countdown_s = 15     # countdown before the order is cancelled
+success_screen_s = 6
+admin_hold_s = 3             # hold GREEN + BLUE this long (Landing/Sold out/Fault) for admin
+admin_exit_hold_s = 2        # hold WHITE this long to leave admin
+admin_idle_timeout_s = 120
+admin_pin_lockout_s = 60
+admin_pin_max_attempts = 5
+
+[pins]                       # BCM GPIO numbers (NOT physical pin numbers)
+chip = "auto"                # Pi 5 header chip is auto-detected (pinctrl-rp1)
+button_green = 5             # physical pin 29
+button_blue = 6              # physical pin 31
+button_white = 13            # physical pin 33
+coin = 19                    # physical pin 35  (through an optocoupler!)
+drop_sensor = 26             # physical pin 37  (TCRT5000 DO, module powered from 3.3 V)
+motor_relay = 20             # physical pin 38
+coin_enable = -1             # physical pin 40 (GPIO21) if you add a coin-inhibit relay; -1 = none
+
+[buttons]
+active_low = true            # button wired between GPIO and GND (internal pull-up)
+debounce_ms = 60
+poll_interval_ms = 5
+
+[coin]
+value = 5                    # pesos per accepted coin
+pulses_per_coin = 1
+active_low = true            # optocoupler pulls the GPIO LOW during a pulse
+pulse_min_ms = 15            # tune with tools/coin_probe.py
+pulse_max_ms = 150
+min_gap_ms = 40
+burst_settle_ms = 250        # only used if pulses_per_coin > 1
+glitch_filter_us = 3000
+stuck_active_s = 2.0
+enable_active_high = true
+
+[dispense]
+relay_active_high = true     # strongly recommended (boot-safe). See docs/WIRING.md
+motor_on_ms = 2000           # relay ON time per footmop
+stop_on_drop = false         # true = cut the motor the moment the sensor sees the item
+drop_wait_after_ms = 1500    # keep watching the sensor after the motor stops
+cooldown_ms = 1000           # pause between items
+hard_cutoff_margin_ms = 500  # independent timer forces the relay off at motor_on_ms + this
+sensor_enabled = true        # TCRT5000 drop sensor installed
+sensor_active_low = true     # most TCRT5000 modules: DO goes LOW when an object is detected
+sensor_glitch_us = 1000
+
+[admin]
+pin = "1234"                 # CHANGE THIS
+
+[storage]
+db_path = "/var/lib/footmop/footmop.db"
+log_dir = "/var/log/footmop"
+
+[display]
+fullscreen = true
+hide_cursor = true
+touch_enabled = false        # buttons-only: all touch/mouse input is ignored
+window_width = 480           # only used with --windowed
+window_height = 320
