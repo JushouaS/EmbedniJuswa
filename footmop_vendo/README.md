@@ -6,6 +6,8 @@ the Green/Blue/White buttons (or just drops coins in), pays with ₱5 coins, and
 the machine dispenses one footmop at a time. A TCRT5000 sensor confirms each
 drop. Touch and mouse input are ignored completely.
 
+**New here? Start with [docs/HOW_TO_RUN.md](docs/HOW_TO_RUN.md)** – step-by-step for the PC simulator and the Raspberry Pi.
+
 ## Customer flow
 
 ```
