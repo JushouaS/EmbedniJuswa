@@ -126,7 +126,7 @@ class Walkthrough:
         a(4200, self.hal.toggle_jam)
         self.tap(W); self.tap(W)
         self.coins(1)
-        a(4200, self.expect(State.FAULT)); a(0, self.shot("fault_locked"))
+        a(6200, self.expect(State.FAULT)); a(0, self.shot("fault_locked"))
         a(100, self.hal.toggle_jam)
         self.tap(W); a(200, self.expect(State.FAULT))   # locked
 

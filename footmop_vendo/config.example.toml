@@ -24,12 +24,14 @@ admin_pin_max_attempts = 5
 [pins]                       # BCM GPIO numbers (NOT physical pin numbers)
 chip = "auto"                # Pi 5 header chip is auto-detected (pinctrl-rp1)
 button_green = 5             # physical pin 29
-button_blue = 6              # physical pin 31
-button_white = 13            # physical pin 33
-coin = 19                    # physical pin 35  (through an optocoupler!)
-drop_sensor = 26             # physical pin 37  (TCRT5000 DO, module powered from 3.3 V)
-motor_relay = 20             # physical pin 38
+button_blue = 27             # physical pin 13
+button_white = 22            # physical pin 15
+coin = 23                    # physical pin 16  (through an optocoupler!)
+drop_sensor = 26             # physical pin 37  (IR sensor that stops the servo; powered from 3.3 V)
+servo = 12                   # physical pin 32  (MG995 signal wire; hardware-PWM capable)
+motor_relay = -1             # only used if dispense.driver = "relay"
 coin_enable = -1             # physical pin 40 (GPIO21) if you add a coin-inhibit relay; -1 = none
+# Do NOT use GPIO 7, 8, 9, 10, 11, 17, 24 or 25 - the 3.5" screen uses them.
 
 [buttons]
 active_low = true            # button wired between GPIO and GND (internal pull-up)
@@ -49,14 +51,17 @@ stuck_active_s = 2.0
 enable_active_high = true
 
 [dispense]
-relay_active_high = true     # strongly recommended (boot-safe). See docs/WIRING.md
-motor_on_ms = 2000           # relay ON time per footmop
-stop_on_drop = false         # true = cut the motor the moment the sensor sees the item
-drop_wait_after_ms = 1500    # keep watching the sensor after the motor stops
-cooldown_ms = 1000           # pause between items
-hard_cutoff_margin_ms = 500  # independent timer forces the relay off at motor_on_ms + this
-sensor_enabled = true        # TCRT5000 drop sensor installed
-sensor_active_low = true     # most TCRT5000 modules: DO goes LOW when an object is detected
+driver = "servo"             # "servo" = MG995 continuous-rotation servo, "relay" = DC motor via relay
+servo_spin_us = 2000         # spin pulse width. Servo turns the WRONG way? use 1000 instead
+servo_freq_hz = 50
+motor_on_ms = 5000           # MAX spin time per footmop; no IR detection by then = jam -> OUT OF SERVICE
+stop_on_drop = true          # stop the servo the moment the IR sensor sees the footmop
+drop_wait_after_ms = 300     # keep watching the sensor briefly after the servo stops
+cooldown_ms = 1000           # pause between footmops
+hard_cutoff_margin_ms = 500  # independent timer forces the servo off at motor_on_ms + this
+relay_active_high = true     # only for driver = "relay"
+sensor_enabled = true        # IR drop sensor installed
+sensor_active_low = true     # most IR modules: DO goes LOW when an object is detected
 sensor_glitch_us = 1000
 
 [admin]

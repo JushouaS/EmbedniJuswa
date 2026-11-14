@@ -58,9 +58,14 @@ class LgpioHAL(HAL):
         self._io_lock = threading.Lock()
         self._stop = threading.Event()
         self._motor_off_level = 0 if cfg.dispense.relay_active_high else 1
+        self._servo = cfg.dispense.driver == "servo"
 
         # Outputs FIRST, driven to the safe level, before anything else.
-        lgpio.gpio_claim_output(self.h, p.motor_relay, self._motor_off_level)
+        if self._servo:
+            # Servo signal held LOW = no pulses = a continuous servo stays still.
+            lgpio.gpio_claim_output(self.h, p.servo, 0)
+        else:
+            lgpio.gpio_claim_output(self.h, p.motor_relay, self._motor_off_level)
         if p.coin_enable is not None and p.coin_enable >= 0:
             off = 0 if cfg.coin.enable_active_high else 1
             lgpio.gpio_claim_output(self.h, p.coin_enable, off)
@@ -142,13 +147,24 @@ class LgpioHAL(HAL):
 
     # --------------------------------------------------------------- outputs
     def set_motor(self, on: bool) -> None:
-        level = (1 - self._motor_off_level) if on else self._motor_off_level
+        """Start/stop the dispenser. Servo: 50 Hz pulses at servo_spin_us while
+        spinning; pulse width 0 = stop sending pulses = servo stops."""
+        d = self.cfg.dispense
         with self._io_lock:
-            lgpio.gpio_write(self.h, self.cfg.pins.motor_relay, level)
+            if self._servo:
+                lgpio.tx_servo(self.h, self.cfg.pins.servo, d.servo_spin_us if on else 0,
+                               d.servo_freq_hz)
+            else:
+                level = (1 - self._motor_off_level) if on else self._motor_off_level
+                lgpio.gpio_write(self.h, self.cfg.pins.motor_relay, level)
 
     def force_motor_off(self) -> None:
         try:
-            lgpio.gpio_write(self.h, self.cfg.pins.motor_relay, self._motor_off_level)
+            if self._servo:
+                lgpio.tx_servo(self.h, self.cfg.pins.servo, 0, self.cfg.dispense.servo_freq_hz)
+                lgpio.gpio_write(self.h, self.cfg.pins.servo, 0)
+            else:
+                lgpio.gpio_write(self.h, self.cfg.pins.motor_relay, self._motor_off_level)
         except Exception:
             log.exception("force_motor_off failed")
 

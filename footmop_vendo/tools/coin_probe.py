@@ -3,7 +3,7 @@
 [coin] pulse_min_ms / pulse_max_ms / min_gap_ms.
 
 Stop the kiosk first:   sudo systemctl stop footmop
-Then:                   python3 tools/coin_probe.py --gpio 19
+Then:                   python3 tools/coin_probe.py --gpio 23
 Insert coins one at a time; Ctrl+C to quit.
 """
 import argparse
@@ -27,7 +27,7 @@ def find_chip():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--gpio", type=int, default=19)
+    ap.add_argument("--gpio", type=int, default=23)
     ap.add_argument("--active-high", action="store_true")
     ap.add_argument("--glitch-us", type=int, default=0, help="0 = see everything, including noise")
     a = ap.parse_args()

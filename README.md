@@ -13,8 +13,9 @@ Embedded projects by **JushouaS**.
 A full-screen vending kiosk written in Python (PyQt5) for a **Raspberry Pi 5**
 with a **3.5" SPI screen**. It has no touchscreen: customers use three
 physical buttons (**GREEN / WHITE / BLUE**). It sells footmops at **₱5 each**,
-takes ₱5 coins, and dispenses one footmop at a time. A **TCRT5000** IR sensor
-confirms that each footmop actually dropped.
+takes ₱5 coins, and dispenses one footmop at a time. An **MG995 continuous
+servo** spins the dispenser, and an **IR sensor** stops it the moment a
+footmop drops.
 
 <table>
 <tr>
@@ -44,9 +45,10 @@ confirms that each footmop actually dropped.
   change is given.
 - **Coin noise filtering.** Pulse width, gap and stuck-line checks stop
   electrical noise from counting as coins.
-- **Each footmop is confirmed.** The TCRT5000 sensor must see every item
-  drop. If one doesn't drop (a jam), the machine locks on **OUT OF SERVICE**
-  and records how many items the customer is still owed.
+- **Servo + IR sensor dispensing.** The MG995 servo spins until the IR
+  sensor sees the footmop drop, then stops immediately. If nothing drops
+  within 5 s (a jam), the servo stops, the machine locks on **OUT OF
+  SERVICE**, and it records how many items the customer is still owed.
 - **"Still there?" timeout.** After 60 s with no button press, a 15 s
   countdown starts, then the order is cancelled.
 - **Survives power cuts.** Stock, every coin and every sale are saved to
@@ -58,8 +60,8 @@ confirms that each footmop actually dropped.
   - **Exporting sales:** download the sales report as a **CSV to a USB flash
     drive**.
 - **Self-healing.** The app starts automatically at boot. A systemd watchdog
-  restarts it if it freezes. Several separate safety checks force the motor
-  relay off.
+  restarts it if it freezes. Several separate safety checks force the servo
+  to stop.
 - **PC simulator.** Try every screen on Windows, Mac or Linux with the
   keyboard. No Pi needed.
 
@@ -73,24 +75,27 @@ confirms that each footmop actually dropped.
 | 3.5" SPI screen (480×320, ILI9486, Waveshare-compatible) | Plugs onto pins 1–26. Touch is not used |
 | 3 push buttons: GREEN, WHITE, BLUE | Each wired between a GPIO pin and GND |
 | ₱5 single-coin acceptor (12 V) + **PC817 optocoupler** | Never connect the 12 V coin signal straight to the Pi |
-| TCRT5000 IR sensor module | Power it from **3.3 V**, not 5 V |
-| **Active-HIGH** relay (or MOSFET) module + dispenser motor + motor power supply | Active-HIGH keeps the motor off while the Pi boots |
-| *(Recommended)* a second relay on the coin acceptor's 12 V | Physically rejects coins when not on the payment screen |
+| IR sensor module (TCRT5000) | Stops the servo when a footmop drops. Power it from **3.3 V**, not 5 V |
+| **MG995 continuous-rotation (360°) servo** + its own **5–6 V, 2–3 A** supply | Never power the servo from the Pi. Join the grounds |
+| 40-pin GPIO splitter / extension | Needed to reach pins 13, 15 and 16 under the screen |
+| *(Recommended)* a relay on the coin acceptor's 12 V | Physically rejects coins when not on the payment screen |
 
 ### Wiring (BCM GPIO numbers)
-
-The screen covers physical pins 1–26, so everything else uses pins 29–40:
 
 | Function | GPIO | Physical pin |
 |---|---|---|
 | GREEN button | GPIO 5 | 29 |
-| BLUE button | GPIO 6 | 31 |
-| WHITE button | GPIO 13 | 33 |
-| Coin signal (through the PC817) | GPIO 19 | 35 |
-| TCRT5000 `DO` | GPIO 26 | 37 |
-| Motor relay `IN` | GPIO 20 | 38 |
+| BLUE button | GPIO 27 | 13 * |
+| WHITE button | GPIO 22 | 15 * |
+| Coin pulse signal (through the PC817) | GPIO 23 | 16 * |
+| IR sensor `DO` | GPIO 26 | 37 |
+| MG995 servo signal (orange) | GPIO 12 | 32 |
 | Coin-slot relay *(optional)* | GPIO 21 | 40 |
 | GND | – | 30, 34, 39 |
+
+\* Under the 3.5" screen, so you need a GPIO splitter/extension to reach
+them. **Don't use GPIO 7–11, 17, 24 or 25**: the screen uses them (GPIO 25
+is its reset line).
 
 Full diagrams and tips: [`footmop_vendo/docs/WIRING.md`](footmop_vendo/docs/WIRING.md).
 
@@ -180,7 +185,7 @@ The installer does the following:
 
    Save with **Ctrl+O**, then **Enter**, then exit with **Ctrl+X**.
 
-2. **Keep the motor OFF during boot.** Open the boot config:
+2. **(Optional) keep the servo still during boot.** Open the boot config:
 
    ```bash
    sudo nano /boot/firmware/config.txt
@@ -189,11 +194,8 @@ The installer does the following:
    Add this line at the very bottom:
 
    ```
-   gpio=20=op,dl
+   gpio=12=op,dl
    ```
-
-   If you use an active-LOW relay instead, use `gpio=20=op,dh` and set
-   `relay_active_high = false` in `config.toml`.
 
 3. Reboot:
 
@@ -214,8 +216,10 @@ shows **SOLD OUT**, because the stock is 0.
 2. **Test hardware:**
    - Press each button: its level changes on screen.
    - Insert a ₱5 coin: you should see `COIN +P5`.
-   - Hold a footmop in front of the sensor: it should show `BLOCKED`.
-   - Select **Test dispense 1 item**: one footmop should drop.
+   - Hold a footmop in front of the IR sensor: it should show `BLOCKED`.
+   - Select **Test dispense 1 item**: the servo spins, one footmop drops,
+     and the servo stops as soon as the IR sensor sees it. If it spins the
+     wrong way, set `servo_spin_us = 1000` in `config.toml`.
 3. **Stock / Restock:** set the real number of footmops, digit by digit.
    WHITE on the last digit saves.
 4. **Exit admin.** The welcome screen appears and the machine is ready to
@@ -227,7 +231,7 @@ Measure your coin acceptor's pulses and adjust the settings:
 
 ```bash
 sudo systemctl stop footmop
-python3 /opt/footmop/tools/coin_probe.py --gpio 19
+python3 /opt/footmop/tools/coin_probe.py --gpio 23
 ```
 
 Insert a few coins and note the `width=` values the probe prints. Then:
@@ -306,7 +310,7 @@ On Windows, use `py` instead of `python`.
 | → or ↓ | BLUE button |
 | Enter | WHITE button |
 | C | Insert a ₱5 coin |
-| J | Simulate a motor jam |
+| J | Simulate a dispenser jam |
 | ← → ← → ← | Open admin (PIN 0412) |
 | Esc | Quit |
 
@@ -322,8 +326,10 @@ Run the tests with `pip install pytest`, then `python -m pytest -q`.
 | "Hardware initialisation failed" | Run `sudo apt install python3-lgpio`. Check that no pin in `config.toml` clashes with the screen (GPIO 7–11, 17, 24, 25) |
 | Buttons do nothing | Admin → Test hardware: does the level change? Each button must go between its GPIO and **GND** |
 | Coins not counted | Do Step 9. Check the PC817 wiring and set the coin acceptor's NO/NC switch to **NO** |
-| Every sale says "Dispense Failure" | The sensor never sees the footmop. Move it closer (2–15 mm), turn its potentiometer, and power it from 3.3 V |
-| Motor spins while the Pi boots | You have an active-LOW relay. See Step 7.2 |
+| Every sale says "Dispense Failure" | The IR sensor never sees the footmop, so the servo times out after 5 s. Move the sensor closer (2–15 mm), turn its potentiometer, and power it from 3.3 V |
+| Servo spins the wrong way | Set `servo_spin_us = 1000` in `/etc/footmop/config.toml`, then `sudo systemctl restart footmop` |
+| Servo creeps when stopped | Turn the MG995's centre trimmer (if it has one). Check that the servo supply GND is joined to the Pi GND |
+| Pi reboots when the servo starts | The servo is powered from the Pi. Give it its own 5–6 V, 2–3 A supply |
 | Forgot the admin PIN | Over SSH: `sudo nano /etc/footmop/config.toml`, change `pin`, then `sudo systemctl restart footmop` |
 | CSV says "No USB drive" | Use a FAT32 or exFAT flash drive, and re-run `sudo ./deploy/install.sh` once to set up USB auto-mount |
 
@@ -332,6 +338,6 @@ Run the tests with `pip install pytest`, then `python -m pytest -q`.
 ## More documentation
 
 - [`footmop_vendo/docs/HOW_TO_RUN.md`](footmop_vendo/docs/HOW_TO_RUN.md): detailed step-by-step guide (PC and Pi)
-- [`footmop_vendo/docs/WIRING.md`](footmop_vendo/docs/WIRING.md): wiring, coin acceptor, sensor and relay safety
+- [`footmop_vendo/docs/WIRING.md`](footmop_vendo/docs/WIRING.md): wiring, coin acceptor, IR sensor and MG995 servo
 - [`footmop_vendo/docs/DISPLAY_SETUP.md`](footmop_vendo/docs/DISPLAY_SETUP.md): 3.5" screen setup
 - [`footmop_vendo/README.md`](footmop_vendo/README.md): technical overview, policies and project layout

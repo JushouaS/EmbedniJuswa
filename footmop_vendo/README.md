@@ -71,11 +71,12 @@ the physical buttons, labelled with what each button does right now.
      multi-pulse acceptors.
 - **Dispensing:** items are dispensed one at a time.
   1. A pre-check confirms the chute is clear.
-  2. The motor runs for its set time.
-  3. The sensor confirms the drop within a time window.
+  2. The MG995 continuous servo spins until the IR sensor sees the footmop
+     drop, then stops immediately.
+  3. No drop within 5 s = jam: the servo stops and the machine locks.
   4. The stock count goes down only for confirmed items.
-- **Motor safety:** an independent hard-cutoff timer, plus `finally` blocks,
-  a crash hook, and `ExecStopPost` all switch the relay off. A watchdog in
+- **Servo safety:** an independent hard-cutoff timer, plus `finally` blocks,
+  a crash hook, and `ExecStopPost` all stop the servo (no pulses = no spin). A watchdog in
   the state machine faults the machine if the dispenser never reports back.
 - **Fault lock:** a jam, a blocked chute, a dispenser timeout, or a power cut
   mid-dispense locks the machine on an *Out of Service* screen. The fault
@@ -161,7 +162,7 @@ To run the unit tests: `python3 -m pytest -q`
    unzip footmop_vendo.zip && cd footmop_vendo
    sudo ./deploy/install.sh                 # or: FOOTMOP_DISPLAY_MODE=desktop sudo -E ./deploy/install.sh
    sudo nano /etc/footmop/config.toml       # set admin PIN, check pins
-   sudo nano /boot/firmware/config.txt      # add: gpio=20=op,dl
+   sudo nano /boot/firmware/config.txt      # optional: gpio=12=op,dl (servo held still at boot)
    sudo reboot
    ```
 
@@ -169,7 +170,7 @@ To run the unit tests: `python3 -m pytest -q`
 
    ```bash
    sudo systemctl stop footmop
-   python3 /opt/footmop/tools/coin_probe.py --gpio 19    # insert coins, read widths
+   python3 /opt/footmop/tools/coin_probe.py --gpio 23    # insert coins, read widths
    ```
 
    Set `pulse_min_ms` and `pulse_max_ms` in the config to bracket the widths
@@ -202,7 +203,7 @@ footmop/
 deploy/                installer, systemd unit, launcher, relay-off hook
 docs/                  wiring + display setup
 tools/coin_probe.py    measure real coin pulse widths
-tests/                 44 unit tests (state machine, decoder, debounce, store, dispenser)
+tests/                 46 unit tests (state machine, decoder, debounce, store, dispenser)
 ```
 
 ## Not yet verified on real hardware
@@ -213,5 +214,5 @@ checking on the real machine:
 
 - coin pulse widths, using `coin_probe.py`;
 - the TCRT5000 position and threshold;
-- whether your relay module is active-high or active-low;
+- the servo's spin direction and speed (`servo_spin_us`);
 - the vendor's display driver.

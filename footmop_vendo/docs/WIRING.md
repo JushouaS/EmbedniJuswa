@@ -3,23 +3,28 @@
 > Safety first: the Pi's GPIO pins are **3.3 V only** and have no protection.
 > Never connect 5 V or 12 V signals directly to a GPIO pin.
 
-## Which pins are free
+## Pin map
 
-The 3.5" XPT2046 screen plugs onto **physical pins 1–26**. It uses SPI0
-(GPIO 7, 8, 9, 10, 11) plus GPIO 17, 24 and 25 for touch and display control.
-All peripherals therefore go on **physical pins 27–40**. The app refuses to
-start if you configure a pin the screen uses.
+The 3.5" screen plugs onto **physical pins 1–26**. It uses SPI0 (GPIO 7, 8, 9,
+10, 11) plus **GPIO 17** (touch interrupt), **24** (data/command) and **25**
+(screen reset). **Never wire anything else to those.** The app refuses to start
+if you do.
 
-| Function             | BCM GPIO | Physical pin | Other side                         |
-|----------------------|----------|--------------|------------------------------------|
-| Green button (left)  | GPIO 5   | 29           | GND (pin 30)                       |
-| Blue button (right)  | GPIO 6   | 31           | GND (pin 34)                       |
-| White button (OK)    | GPIO 13  | 33           | GND (pin 34)                       |
-| Coin signal          | GPIO 19  | 35           | optocoupler output (see below)     |
-| TCRT5000 drop sensor | GPIO 26  | 37           | sensor module **DO** pin           |
-| Motor relay IN       | GPIO 20  | 38           | relay/MOSFET module input          |
-| GND                  | –        | 30, 34, 39   |                                    |
-| Coin inhibit (recommended) | GPIO 21 | 40      | relay that powers the coin slot    |
+| Function | BCM GPIO | Physical pin | Other side |
+|---|---|---|---|
+| Green button (left) | GPIO 5 | 29 | GND (pin 30) |
+| Blue button (right) | GPIO 27 | 13 * | GND |
+| White button (OK) | GPIO 22 | 15 * | GND |
+| Coin pulse signal | GPIO 23 | 16 * | PC817 optocoupler output (see below) |
+| IR sensor (stops the servo) | GPIO 26 | 37 | sensor module **DO** pin |
+| MG995 servo signal | GPIO 12 | 32 | servo **orange/yellow** wire |
+| Coin inhibit relay *(optional)* | GPIO 21 | 40 | relay that powers the coin slot |
+| GND | – | 30, 34, 39 | |
+
+\* **Pins 13, 15 and 16 are underneath the screen.** The screen doesn't use
+them electrically, but you can't reach them while it's plugged in. Use a
+**40-pin GPIO splitter / extension board** (or the screen's pass-through
+header, or wires soldered under the Pi) to reach GPIO 27, 22 and 23.
 
 **Power for the sensor and modules.** The 3.3 V and 5 V pins (1, 2, 4, 17) are
 under the screen. To reach them, use one of:
@@ -42,7 +47,7 @@ open-collector **COIN** output. Isolate it with a **PC817 optocoupler**:
 ```
  +12V ──[1 kΩ]──► PC817 pin 1 (anode)
  COIN wire ─────► PC817 pin 2 (cathode)          (COIN sinks to GND during a pulse)
- PC817 pin 4 (collector) ─────► GPIO 19 (pin 35)  (internal pull-up to 3.3 V)
+ PC817 pin 4 (collector) ─────► GPIO 23 (pin 16)  (internal pull-up to 3.3 V)
  PC817 pin 3 (emitter)   ─────► Pi GND (pin 39)
  Coin acceptor GND ─────► 12 V supply GND (NOT connected to the Pi)
 ```
@@ -58,7 +63,7 @@ open-collector **COIN** output. Isolate it with a **PC817 optocoupler**:
   voltage of its own instead of pulling to GND, the opto LED goes between COIN
   and GND instead.
 
-## TCRT5000 drop sensor
+## IR drop sensor (TCRT5000) – stops the servo
 
 - Power the module from **3.3 V**, not 5 V. Its DO pin is pulled up to the
   module's supply, so a 5 V module would push 5 V into the Pi.
@@ -74,26 +79,49 @@ open-collector **COIN** output. Isolate it with a **PC817 optocoupler**:
   with either; only the active level may change.
 
 The app checks the sensor **before** each item. If the sensor already reads
-"blocked", it refuses to run the motor and shows *Chute Blocked*.
+"blocked", it refuses to start the servo and shows *Chute Blocked*.
 
-## Motor relay (boot safety)
+## MG995 continuous servo (the dispenser)
 
-GPIO 20 normally has a pull-**down** at power-on, so it reads LOW before the
-app starts. Confirm this on your Pi with `pinctrl get 20` before the app runs:
-it should show `pd` / `lo`.
+The MG995 360° servo spins the dispenser. **It stops the moment the IR sensor
+sees the footmop drop.** If no footmop is seen within 5 s (`motor_on_ms`), the
+servo stops and the machine locks with *Dispense Failure* (a jam).
 
-- **Use an active-HIGH relay or MOSFET module.** IN high = motor on. The
-  motor then stays off during boot, a crash and shutdown without any extra
-  setup. Keep `relay_active_high = true` and add `gpio=20=op,dl` to
-  `/boot/firmware/config.txt`.
-- With a common **active-LOW** relay module, the motor would run during every
-  boot. If you must use one:
-  1. set `relay_active_high = false`;
-  2. add `gpio=20=op,dh` to `/boot/firmware/config.txt`;
-  3. accept that there is a short window during early boot where the pin is
-     not yet driven.
-- Power the motor from its own supply, never from the Pi. Put a flyback diode
-  (1N4007) across a DC motor.
+| MG995 wire | Connect to |
+|---|---|
+| Brown (GND) | Servo power supply **GND**, and also a **Pi GND** pin (e.g. 34). A common ground is required |
+| Red (+) | A separate **5–6 V supply rated at least 2–3 A**. **Not** the Pi's 5 V pin: the MG995 can draw over 1 A and would reset the Pi |
+| Orange (signal) | **GPIO 12, physical pin 32** |
+
+How the app drives it:
+
+- **Spin:** 50 Hz servo pulses of `servo_spin_us` (2000 µs by default).
+- **Stop:** no pulses at all (the signal is held LOW). A continuous servo with
+  no signal stands still. That's also the state during boot, a crash or
+  shutdown, so the servo can't start spinning by itself.
+- **Wrong direction?** If it spins the wrong way, set
+  `servo_spin_us = 1000` in `/etc/footmop/config.toml`, then
+  `sudo systemctl restart footmop`.
+- **Too fast or too slow?** Values closer to 1500 spin slower: try 1700
+  (or 1300 for the other direction). 1500 itself means "stop", so it isn't
+  allowed.
+- **Creeps when it should stop?** Some MG995s have a small centre trimmer.
+  With the kiosk running and idle, turn it until the servo is completely
+  still.
+- **Test it:** Admin → **Test hardware** → **Test dispense 1 item**. The
+  servo should spin, drop one footmop, and stop as soon as the IR sensor sees
+  it.
+
+Optional boot-time safety line for `/boot/firmware/config.txt` (holds the
+signal LOW from power-on):
+
+```
+gpio=12=op,dl
+```
+
+> Using a plain DC motor with a relay instead? Set `driver = "relay"` and
+> `pins.motor_relay` in the config. The old relay instructions still apply:
+> use an active-HIGH module and set `gpio=<pin>=op,dl`.
 
 ## Coin inhibit (strongly recommended)
 

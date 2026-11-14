@@ -84,10 +84,10 @@ cat <<EOF
  Installed. Before starting:
 
  1. Edit $ETC/config.toml  - set [admin] pin, check [pins], price.
- 2. Boot-safe motor relay: add this line to /boot/firmware/config.txt
-       gpio=20=op,dl        (active-HIGH relay module - recommended)
-    or gpio=20=op,dh        (active-LOW relay module; also set
-                             relay_active_high = false in config.toml)
+ 2. (Optional) keep the servo still at boot: add this line to
+    /boot/firmware/config.txt
+       gpio=12=op,dl
+    If the servo spins the wrong way, set servo_spin_us = 1000 in config.toml.
  3. Make sure the 3.5" screen driver from your screen's vendor is set up
     (see docs/DISPLAY_SETUP.md), then reboot.
  4. Start / check:

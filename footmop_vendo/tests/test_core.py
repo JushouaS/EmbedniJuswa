@@ -607,3 +607,22 @@ def test_pin_screen_returns_to_landing_after_30s_idle(k):
     k.clock.t += 1.1
     k.tick()
     assert k.state == State.LANDING
+
+
+def test_servo_stops_as_soon_as_ir_sees_footmop():
+    """Continuous servo: spins until the IR sensor fires, not for the full max time."""
+    hal = SimHAL(drop_delay=0.05)
+    cfg = DispenseCfg(motor_on_ms=3000, drop_wait_after_ms=100, cooldown_ms=10)
+    assert cfg.stop_on_drop                     # default for the servo build
+    done = threading.Event()
+    d = Dispenser(hal, cfg, lambda t, i: None, lambda t: done.set(), lambda t, c, m: done.set())
+    t0 = time.monotonic()
+    d.start(1, 1)
+    assert done.wait(5)
+    assert time.monotonic() - t0 < 1.0          # stopped at the drop, not after 3 s
+    assert hal.history == [True, False] and hal.motor is False
+
+
+def test_servo_jam_times_out():
+    r = _run_dispenser(SimHAL(drop=False), 1)
+    assert r["fault"] == "dispense_failure"

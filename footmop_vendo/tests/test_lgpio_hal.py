@@ -57,6 +57,13 @@ def make_fake_lgpio():
         return CB(gpio, fn)
 
     m.callback = callback
+
+    def tx_servo(h, gpio, pulse_width, servo_frequency=50, offset=0, cycles=0):
+        m.state["servo"].append((gpio, pulse_width, servo_frequency))
+        return 0
+
+    m.tx_servo = tx_servo
+    m.state["servo"] = []
     return m
 
 
@@ -74,10 +81,12 @@ def test_lgpio_hal_wiring(monkeypatch):
     s = fake.state
     # chip auto-detect picked the rp1 header chip
     assert s["open"][0] == 0
-    # relay claimed as output at the OFF level (active-high -> 0)
-    assert s["claims"][20] == "out" and s["outputs"][20] == 0
-    assert s["claims"][5][1] == fake.SET_PULL_UP
-    assert s["debounce"][19] == 3000
+    # servo pin claimed as output, held LOW (no pulses = stopped)
+    assert s["claims"][12] == "out" and s["outputs"][12] == 0
+    for pin in (5, 27, 22):                       # GREEN, BLUE, WHITE
+        assert s["claims"][pin][1] == fake.SET_PULL_UP
+    assert s["claims"][23][0] == "alert" and s["debounce"][23] == 3000   # coin
+    assert s["claims"][26][0] == "alert"                                 # IR sensor
 
     buttons, edges = [], []
     hal.start(lambda b, p: buttons.append((b, p)), lambda lvl, t: edges.append(lvl))
@@ -90,9 +99,9 @@ def test_lgpio_hal_wiring(monkeypatch):
     assert buttons == [(Btn.GREEN, True), (Btn.GREEN, False)]
 
     # coin edges forwarded, watchdog level (2) ignored
-    s["callbacks"][19](0, 19, 0, 1_000_000)
-    s["callbacks"][19](0, 19, 1, 41_000_000)
-    s["callbacks"][19](0, 19, 2, 99_000_000)
+    s["callbacks"][23](0, 23, 0, 1_000_000)
+    s["callbacks"][23](0, 23, 1, 41_000_000)
+    s["callbacks"][23](0, 23, 2, 99_000_000)
     assert edges == [0, 1]
 
     # drop sensor active-low edge triggers the latch
@@ -100,11 +109,16 @@ def test_lgpio_hal_wiring(monkeypatch):
     s["callbacks"][26](0, 26, 0, 5)
     assert hal.wait_drop(0.1) and hal.drop_count() == 1
 
+    # MG995 continuous servo: spin = 2000 us pulses at 50 Hz, stop = pulse width 0
     hal.set_motor(True)
-    assert s["outputs"][20] == 1
+    assert s["servo"][-1] == (12, 2000, 50)
+    hal.set_motor(False)
+    assert s["servo"][-1] == (12, 0, 50)
+    hal.set_motor(True)
     hal.force_motor_off()
-    assert s["outputs"][20] == 0
+    assert s["servo"][-1] == (12, 0, 50) and s["outputs"][12] == 0
     hal.close()
+    assert s["servo"][-1][1] == 0
 
 
 def test_lgpio_hal_active_low_relay(monkeypatch):
@@ -115,6 +129,8 @@ def test_lgpio_hal_active_low_relay(monkeypatch):
     importlib.reload(lgpio_hal)
     from footmop.config import Config
     cfg = Config()
+    cfg.dispense.driver = "relay"
+    cfg.pins.motor_relay = 20
     cfg.dispense.relay_active_high = False
     hal = lgpio_hal.LgpioHAL(cfg)
     assert fake.state["outputs"][20] == 1     # OFF level for active-low module

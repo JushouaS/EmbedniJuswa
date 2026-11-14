@@ -47,11 +47,12 @@ class TimingCfg:
 class PinsCfg:
     chip: Any = "auto"                   # "auto" or gpiochip number
     button_green: int = 5                # physical pin 29
-    button_blue: int = 6                 # physical pin 31
-    button_white: int = 13               # physical pin 33
-    coin: int = 19                       # physical pin 35
-    drop_sensor: int = 26                # physical pin 37
-    motor_relay: int = 20                # physical pin 38
+    button_blue: int = 27                # physical pin 13
+    button_white: int = 22               # physical pin 15
+    coin: int = 23                       # physical pin 16
+    drop_sensor: int = 26                # physical pin 37  (IR sensor that stops the servo)
+    servo: int = 12                      # physical pin 32  (MG995 signal; hardware-PWM capable pin)
+    motor_relay: int = -1                # only for dispense.driver = "relay"; -1 = not wired
     coin_enable: int = -1                # physical pin 40 (GPIO21) if used; -1 = not wired
 
 
@@ -78,10 +79,16 @@ class CoinCfg:
 
 @dataclass
 class DispenseCfg:
+    driver: str = "servo"                # "servo" (continuous-rotation servo) or "relay" (DC motor)
+    # --- continuous servo (MG995 360 deg): spins until the IR sensor sees the footmop
+    servo_spin_us: int = 2000            # pulse width while spinning; 1000 = other direction
+    servo_freq_hz: int = 50              # standard servo frame rate
+    # --- relay driver only
     relay_active_high: bool = True       # use an active-HIGH relay/MOSFET module (boot-safe)
-    motor_on_ms: float = 2000.0          # relay ON time per item
-    stop_on_drop: bool = False           # cut motor as soon as the sensor sees the item
-    drop_wait_after_ms: float = 1500.0   # keep watching the sensor after motor stops
+    # --- timing (both drivers)
+    motor_on_ms: float = 5000.0          # MAX spin time per item; no drop by then = jam
+    stop_on_drop: bool = True            # stop the moment the IR sensor sees the footmop
+    drop_wait_after_ms: float = 300.0    # keep watching the sensor after the servo stops
     cooldown_ms: float = 1000.0          # pause between items
     hard_cutoff_margin_ms: float = 500.0 # independent watchdog forces relay off
     sensor_enabled: bool = True          # TCRT5000 drop sensor present
@@ -149,9 +156,18 @@ class Config:
             errs.append("timing values must be positive")
         if not str(self.admin.pin).isdigit() or len(str(self.admin.pin)) < 4:
             errs.append("admin.pin must be at least 4 digits")
+        if d.driver not in ("servo", "relay"):
+            errs.append('dispense.driver must be "servo" or "relay"')
+        elif d.driver == "servo":
+            if self.pins.servo is None or self.pins.servo < 0:
+                errs.append("pins.servo must be set when dispense.driver = \"servo\"")
+            if not (500 <= d.servo_spin_us <= 2500) or abs(d.servo_spin_us - 1500) < 100:
+                errs.append("dispense.servo_spin_us must be 500-2500 and not ~1500 (1500 = stop)")
+        elif self.pins.motor_relay is None or self.pins.motor_relay < 0:
+            errs.append("pins.motor_relay must be set when dispense.driver = \"relay\"")
         used = {}
         for name in ("button_green", "button_blue", "button_white", "coin",
-                     "drop_sensor", "motor_relay", "coin_enable"):
+                     "drop_sensor", "servo", "motor_relay", "coin_enable"):
             pin = getattr(self.pins, name)
             if pin is None or pin < 0:
                 continue

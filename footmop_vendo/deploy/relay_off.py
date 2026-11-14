@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive the motor relay pin to its OFF level. Run by systemd after the
+"""Stop the dispenser (servo or motor relay). Run by systemd after the
 kiosk stops or crashes, so a dead process can never leave the motor on."""
 import os
 import sys
@@ -13,13 +13,16 @@ try:
 
     cfg = load_config(os.environ.get("FOOTMOP_CONFIG", "/etc/footmop/config.toml"))
     chip = _find_chip() if str(cfg.pins.chip).lower() == "auto" else int(cfg.pins.chip)
-    off = 0 if cfg.dispense.relay_active_high else 1
+    if cfg.dispense.driver == "servo":
+        pin, off = cfg.pins.servo, 0           # no pulses = servo stops
+    else:
+        pin, off = cfg.pins.motor_relay, (0 if cfg.dispense.relay_active_high else 1)
     h = lgpio.gpiochip_open(chip)
-    lgpio.gpio_claim_output(h, cfg.pins.motor_relay, off)
-    lgpio.gpio_write(h, cfg.pins.motor_relay, off)
+    lgpio.gpio_claim_output(h, pin, off)
+    lgpio.gpio_write(h, pin, off)
     # Note: lgpio may release the line on close; the boot-time config.txt
     # "gpio=" line and the relay module's own pull keep it off afterwards.
     lgpio.gpiochip_close(h)
-    print(f"relay_off: GPIO{cfg.pins.motor_relay} set to {off}")
+    print(f"relay_off: dispenser GPIO{pin} set to {off} (stopped)")
 except Exception as exc:  # never fail the unit stop
     print(f"relay_off: {exc}", file=sys.stderr)

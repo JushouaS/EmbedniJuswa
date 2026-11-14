@@ -54,7 +54,7 @@ A 480×320 window opens. That is the same size as the 3.5" screen.
 | **Enter** (or Space / S) | WHITE button |
 | **C** (or 5) | Insert a ₱5 coin (only counted on the payment screen) |
 | **N** | Send electrical noise on the coin wire (should be ignored) |
-| **J** | Turn motor jam on/off. The next purchase fails and locks the machine |
+| **J** | Turn a dispenser jam on/off. The next purchase fails and locks the machine |
 | **B** | Turn "chute blocked" on/off |
 | Tap **← → ← → ←** quickly | Open admin (PIN **0412**) |
 | Menu → **Exit admin** | Leave admin |
@@ -91,7 +91,7 @@ py -m pip install pytest
 py -m pytest -q
 ```
 
-You should see `44 passed`.
+You should see `46 passed`.
 
 ---
 
@@ -102,7 +102,8 @@ You should see `44 passed`.
 - Raspberry Pi 5, its 27 W power supply, and a microSD card of 16 GB or more.
 - The 3.5" SPI screen.
 - Three buttons, the ₱5 coin acceptor (12 V), a PC817 optocoupler, the
-  TCRT5000 sensor module, and an **active-HIGH** relay module for the motor.
+  IR (TCRT5000) sensor module, and the **MG995 continuous servo** with its
+  own 5–6 V supply (2–3 A).
 - All of them wired as shown in [`WIRING.md`](WIRING.md).
 
 ### 1. Prepare the SD card (one time)
@@ -182,7 +183,8 @@ This does the following:
    Set `pin = "...."` under `[admin]`. Save with Ctrl+O, then Enter, then
    Ctrl+X.
 
-2. **Keep the motor OFF while the Pi boots.** Open the boot config:
+2. **Keep the servo still while the Pi boots** (optional extra safety). Open
+   the boot config:
 
    ```bash
    sudo nano /boot/firmware/config.txt
@@ -191,7 +193,7 @@ This does the following:
    Add this line at the bottom:
 
    ```
-   gpio=20=op,dl
+   gpio=12=op,dl
    ```
 
 3. Reboot:
@@ -212,8 +214,9 @@ because the stock is 0.
 2. Go to **Test hardware**. Press each button: its level should change on
    screen. Insert a coin: you should see `COIN +P5`. Hold a footmop in front
    of the sensor: it should change to `BLOCKED`.
-3. Select **Test dispense 1 item**. The motor should turn and drop one
-   footmop.
+3. Select **Test dispense 1 item**. The servo should spin, drop one footmop
+   and stop as soon as the IR sensor sees it. If it spins the wrong way, set
+   `servo_spin_us = 1000` in `/etc/footmop/config.toml`.
 4. Go back, open **Stock / Restock**, and set the real count one digit at a
    time. WHITE on the last digit saves.
 5. Choose **Exit admin**. The welcome screen appears.
@@ -223,7 +226,7 @@ pulses:
 
 ```bash
 sudo systemctl stop footmop
-python3 /opt/footmop/tools/coin_probe.py --gpio 19
+python3 /opt/footmop/tools/coin_probe.py --gpio 23
 ```
 
 Insert some coins and note the `width=` values it prints. Then:
@@ -276,6 +279,8 @@ Your settings, stock and sales are kept. They live in `/etc/footmop` and
 | Buttons do nothing | Admin → Test hardware: does the level change? Check that each button is wired between its GPIO and **GND** |
 | Coins not counted | Run `coin_probe.py` (see step 7). Check the opto wiring and set the acceptor's NO/NC switch to **NO** |
 | Every purchase says "Dispense Failure" | The sensor never sees the item. Check its position (2–15 mm), turn its potentiometer, and power it from **3.3 V** |
-| Motor runs at boot | You have an active-LOW relay. Use an active-HIGH one, or set `relay_active_high = false` and `gpio=20=op,dh` |
+| Servo spins the wrong way | Set `servo_spin_us = 1000` in `/etc/footmop/config.toml`, then `sudo systemctl restart footmop` |
+| Servo creeps when stopped | Turn the MG995's centre trimmer (if it has one) until it's still. Check the common ground between the servo supply and the Pi |
+| Pi reboots when the servo starts | The servo is powered from the Pi. Give it its own 5–6 V, 2–3 A supply (grounds joined) |
 | Admin PIN screen opened by accident | Do nothing - it goes back to the start screen after 30 s |
 | Forgot admin PIN | Over SSH: `sudo nano /etc/footmop/config.toml`, set a new `pin`, then `sudo systemctl restart footmop` |
