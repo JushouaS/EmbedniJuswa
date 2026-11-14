@@ -183,154 +183,158 @@ def card(sc: T.Scale, color: str) -> Tuple[QFrame, QVBoxLayout]:
 
 
 # ================================================================= customer
+class Hero:
+    """The welcome-screen layout, shared by every customer screen so they all
+    look alike - a vertically centred stack of:
+
+        kicker   small, muted         ("Welcome to")
+        main     big, bold, white     ("Footmop Vendo")
+        accent   bold, yellow         ("P5 each")
+        sub      small, muted         ("6 available")
+        cta      bold, white          ("Press WHITE to buy")
+    """
+
+    def __init__(self, screen: "Screen", main: Optional[QWidget] = None,
+                 extra: Optional[QWidget] = None, main_px: int = 38):
+        sc = screen.ctx.sc
+        b = screen.body
+        b.addStretch(1)
+        self.kicker = T.label(sc, "", 17, T.MUTED)
+        b.addWidget(self.kicker)
+        if main is None:
+            self.main = T.label(sc, "", main_px, T.TEXT, True)
+            b.addWidget(self.main)
+        else:
+            b.addWidget(main)
+        self.accent = T.label(sc, "", 26, T.ACCENT, True)
+        b.addWidget(self.accent)
+        if extra is not None:
+            b.addWidget(extra)
+        self.sub = T.label(sc, "", 14, T.MUTED, wrap=True)
+        b.addWidget(self.sub)
+        b.addStretch(1)
+        self.cta = T.label(sc, "", 17, T.TEXT, True, wrap=True)
+        b.addWidget(self.cta)
+        b.addStretch(1)
+
+    def set(self, kicker: str = "", main: Optional[str] = None, accent: str = "",
+            sub: str = "", cta: str = "") -> None:
+        for lbl, txt in ((self.kicker, kicker), (self.accent, accent), (self.sub, sub),
+                         (self.cta, cta)):
+            _set(lbl, txt)
+            lbl.setVisible(bool(txt))
+        if main is not None and hasattr(self, "main"):
+            _set(self.main, main)
+
+
 class LandingScreen(Screen):
     def __init__(self, ctx: Ctx):
         super().__init__(ctx)
-        sc = ctx.sc
-        self.body.addStretch(1)
-        self.body.addWidget(T.label(sc, "Welcome to", 17, T.MUTED))
-        self.body.addWidget(T.label(sc, "Footmop Vendo", 38, T.TEXT, True))
-        self.price = T.label(sc, "", 26, T.ACCENT, True)
-        self.body.addWidget(self.price)
-        self.avail = T.label(sc, "", 14, T.MUTED)
-        self.body.addWidget(self.avail)
-        self.body.addStretch(1)
-        self.body.addWidget(T.label(sc, "Press WHITE to buy", 17, T.TEXT, True))
-        self.body.addStretch(1)
+        self.hero = Hero(self)
         self.legend.set(white="BUY")
 
     def refresh(self) -> None:
         k = self.ctx.kiosk
-        _set(self.header.status, f"Stock {k.stock}")
-        _set(self.price, f"{self.ctx.money(k.price)} each")
-        _set(self.avail, f"{k.stock} available")
+        self.hero.set("Welcome to", "Footmop Vendo", f"{self.ctx.money(k.price)} each",
+                      f"{k.stock} available", "Press WHITE to buy")
 
 
 class SoldOutScreen(Screen):
     def __init__(self, ctx: Ctx):
         super().__init__(ctx)
-        sc = ctx.sc
-        self.body.addStretch(1)
-        self.body.addWidget(T.label(sc, "SOLD OUT", 42, T.ACCENT, True))
-        self.body.addWidget(T.label(sc, "Sorry, no footmops left.\nPlease come back later.", 17, T.TEXT))
-        self.body.addWidget(T.label(sc, "Please don't insert coins.", 14, "#FF9C9C", True))
-        self.body.addStretch(1)
+        self.hero = Hero(self)
 
     def refresh(self) -> None:
-        _set(self.header.status, "Stock 0")
+        self.hero.set("Sorry", "Sold Out", "Please come back later",
+                      "No footmops left right now", "Please don't insert coins")
 
 
 class QuantityScreen(Screen):
     def __init__(self, ctx: Ctx):
         super().__init__(ctx)
         sc = ctx.sc
-        self.body.addWidget(T.label(sc, "How many footmops?", 19, T.TEXT, True))
-        row = QHBoxLayout()
-        self.left = T.label(sc, "◀", 40, T.GREEN, True)
-        self.qty = T.label(sc, "1", 76, T.TEXT, True)
-        self.right = T.label(sc, "▶", 40, T.BLUE, True)
-        row.addWidget(self.left, 1)
-        row.addWidget(self.qty, 2)
-        row.addWidget(self.right, 1)
-        self.body.addLayout(row, 1)
-        self.total = T.label(sc, "", 21, T.ACCENT, True)
-        self.body.addWidget(self.total)
-        self.sub = T.label(sc, "", 13, T.MUTED)
-        self.body.addWidget(self.sub)
+        row = QWidget()
+        rl = QHBoxLayout(row)
+        rl.setContentsMargins(0, 0, 0, 0)
+        self.left = T.label(sc, "\u25c0", 30, T.GREEN, True)
+        self.qty = T.label(sc, "1", 56, T.TEXT, True)
+        self.right = T.label(sc, "\u25b6", 30, T.BLUE, True)
+        rl.addStretch(1)
+        rl.addWidget(self.left)
+        rl.addSpacing(sc(28))
+        rl.addWidget(self.qty)
+        rl.addSpacing(sc(28))
+        rl.addWidget(self.right)
+        rl.addStretch(1)
+        self.hero = Hero(self, main=row)
 
     def refresh(self) -> None:
         k, m = self.ctx.kiosk, self.ctx.money
         coins = -(-k.amount_due // self.ctx.cfg.coin.value)
-        _set(self.header.status, f"Stock {k.stock}")
         _set(self.qty, str(k.qty))
         can_less = k.qty > k.min_qty
         can_more = k.qty < k.max_qty
-        # keep layout stable: hide arrows by colour, not by removing them
         arrows = (can_less, can_more)
         if getattr(self, "_arrows", None) != arrows:
             self._arrows = arrows
             self.left.setStyleSheet(f"color: {T.GREEN if can_less else 'transparent'}; background: transparent;")
             self.right.setStyleSheet(f"color: {T.BLUE if can_more else 'transparent'}; background: transparent;")
-        _set(self.total, f"Total {m(k.amount_due)}  ({coins} coin{'s' if coins != 1 else ''})")
-        if k.credit:
-            sub = f"Inserted {m(k.credit)}  •  paid for {k.credit // k.price}"
-        else:
-            sub = f"{k.max_qty} available"
-        _set(self.sub, sub)
+        sub = (f"Paid {m(k.credit)} so far" if k.credit else f"{k.max_qty} available")
+        self.hero.set("How many footmops?", None,
+                      f"Total {m(k.amount_due)}",
+                      f"{coins} coin{'s' if coins != 1 else ''}  \u2022  {sub}",
+                      "Press WHITE to confirm")
         if k.qty <= 1 and k.credit == 0:
             green = "Cancel"
         else:
-            green = "− Less" if can_less else None
+            green = "\u2212 Less" if can_less else None
         self.legend.set(green=green, white="OK", blue="More +" if can_more else None)
 
 
 class PaymentScreen(Screen):
     def __init__(self, ctx: Ctx):
         super().__init__(ctx)
-        sc = ctx.sc
-        self.title = T.label(sc, "", 20, T.TEXT, True)
-        self.body.addWidget(self.title)
         self.coins = CoinRow(ctx)
-        self.body.addWidget(self.coins)
-        self.amount = T.label(sc, "", 34, T.ACCENT, True)
-        self.body.addWidget(self.amount)
-        self.detail = T.label(sc, "", 13, T.MUTED)
-        self.body.addWidget(self.detail)
-        self.body.addStretch(1)
-        notice, nl = card(sc, "#3A2A00")
-        nl.setContentsMargins(sc(8), sc(3), sc(8), sc(3))
-        nl.addWidget(T.label(sc, "Exact amount only  •  No change given", 13, T.ACCENT, True))
-        self.body.addWidget(notice)
-        self.legend.set(green="← Back")
+        self.hero = Hero(self, extra=self.coins)
+        self.legend.set(green="\u2190 Back")
 
     def refresh(self) -> None:
         k, m = self.ctx.kiosk, self.ctx.money
-        cv = self.ctx.cfg.coin.value
         need = k.coins_needed
-        _set(self.header.status, f"{k.qty} item{'s' if k.qty > 1 else ''}")
-        _set(self.title, f"Insert {need} more {m(cv)} coin{'s' if need != 1 else ''}")
         self.coins.set(k.coins_paid, k.coins_paid + need)
-        _set(self.amount, f"{m(k.credit)} / {m(k.amount_due)}")
-        _set(self.detail, f"{k.qty} × {m(k.price)}")
+        self.hero.set(f"Insert {m(self.ctx.cfg.coin.value)} coins",
+                      f"{m(k.credit)} / {m(k.amount_due)}",
+                      f"{need} more coin{'s' if need != 1 else ''}",
+                      f"{k.qty} footmop{'s' if k.qty != 1 else ''} \u00d7 {m(k.price)}",
+                      "Exact amount only  \u2022  No change given")
 
 
 class DispensingScreen(Screen):
     def __init__(self, ctx: Ctx):
         super().__init__(ctx)
-        sc = ctx.sc
-        self.body.addStretch(1)
-        self.body.addWidget(T.label(sc, "Dispensing your footmop…", 22, T.TEXT, True))
-        self.progress = T.label(sc, "", 34, T.ACCENT, True)
-        self.body.addWidget(self.progress)
-        self.body.addWidget(T.label(sc, "Please wait - don't reach into the chute", 14, T.MUTED))
-        self.body.addStretch(1)
+        self.hero = Hero(self)
 
     def refresh(self) -> None:
         k = self.ctx.kiosk
-        _set(self.progress, f"{min(k.qty, k.items_done + 1)} of {k.qty}")
-        _set(self.header.status, "")
+        self.hero.set("Please wait", "Dispensing\u2026",
+                      f"{min(k.qty, k.items_done + 1)} of {k.qty}",
+                      "Don't reach into the chute yet", "")
 
 
 class SuccessScreen(Screen):
     def __init__(self, ctx: Ctx):
         super().__init__(ctx)
-        sc = ctx.sc
-        self.body.addStretch(1)
-        self.body.addWidget(T.label(sc, "Salamat po!", 40, T.ACCENT, True))
-        self.msg = T.label(sc, "", 19, T.TEXT, wrap=True)
-        self.body.addWidget(self.msg)
-        self.over = T.label(sc, "", 13, T.MUTED, wrap=True)
-        self.body.addWidget(self.over)
-        self.body.addStretch(1)
+        self.hero = Hero(self)
         self.legend.set(white="Done")
 
     def refresh(self) -> None:
         k = self.ctx.kiosk
         n = k.qty
-        _set(self.msg, f"Please take your {n} footmop{'s' if n > 1 else ''} below.")
-        _set(self.over, (f"Overpaid {self.ctx.money(k.overpaid)} - no change given.  " if k.overpaid else "")
-             + f"Back to start in {k.success_seconds_left}s")
-        _set(self.header.status, "")
+        over = f"Overpaid {self.ctx.money(k.overpaid)} - no change given  \u2022  " if k.overpaid else ""
+        self.hero.set("Thank you!", "Salamat po!",
+                      f"Take your {n} footmop{'s' if n != 1 else ''} below",
+                      f"{over}Back to start in {k.success_seconds_left}s",
+                      "Press WHITE when done")
 
 
 class FaultScreen(Screen):
@@ -342,32 +346,24 @@ class FaultScreen(Screen):
 
     def __init__(self, ctx: Ctx):
         super().__init__(ctx)
-        sc = ctx.sc
         self.setObjectName("fault")
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setStyleSheet(f"QWidget#fault {{ background: {T.DANGER_DARK}; }}")
-        box, bl = card(sc, T.DANGER)
-        bl.setContentsMargins(sc(12), sc(10), sc(12), sc(10))
-        bl.addWidget(T.label(sc, "OUT OF SERVICE", 30, T.TEXT, True))
-        self.title = T.label(sc, "", 18, T.TEXT, True, wrap=True)
-        bl.addWidget(self.title)
-        bl.addWidget(T.label(sc, "Please contact the owner.  Do not insert coins.", 14, T.TEXT))
-        self.body.addStretch(1)
-        self.body.addWidget(box)
-        self.detail = T.label(sc, "", 12, "#FFD5D5", wrap=True)
-        self.body.addWidget(self.detail)
-        self.body.addStretch(1)
+        self.hero = Hero(self, main_px=34)
+        self.hero.kicker.setStyleSheet("color: #FFC9C9; background: transparent;")
+        self.hero.sub.setStyleSheet("color: #FFC9C9; background: transparent;")
         self.legend.hide()
 
     def refresh(self) -> None:
         f = self.ctx.kiosk.store.active_fault()
-        _set(self.header.status, "LOCKED")
         if not f:
-            _set(self.title, "Error")
+            self.hero.set("Sorry", "OUT OF SERVICE", "Error", "", "Please contact the owner")
             return
-        _set(self.title, "Error: " + self.TITLES.get(f["code"], f["code"]))
-        owed = f"  •  Items owed: {f['owed_items']}" if f["owed_items"] else ""
-        _set(self.detail, f"Code {f['code']}  •  {f['ts'].replace('T', ' ')}{owed}")
+        owed = f"  \u2022  Items owed: {f['owed_items']}" if f["owed_items"] else ""
+        self.hero.set("Sorry", "OUT OF SERVICE",
+                      "Error: " + self.TITLES.get(f["code"], f["code"]),
+                      f"Code {f['code']}  \u2022  {f['ts'][:16].replace('T', ' ')}{owed}",
+                      "Please contact the owner  \u2022  Don't insert coins")
 
 
 # ==================================================================== admin

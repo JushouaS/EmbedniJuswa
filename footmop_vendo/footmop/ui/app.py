@@ -90,29 +90,38 @@ class BlockPointerInput(QObject):
 
 # ---------------------------------------------------------------- window
 class WarningOverlay(QFrame):
+    """Same centred layout as the welcome screen, on a darkened background."""
+
     def __init__(self, parent: QWidget, ctx: S.Ctx):
         super().__init__(parent)
         self.ctx = ctx
         sc = ctx.sc
-        self.setStyleSheet("QFrame { background: rgba(4, 14, 26, 235); }")
+        self.setObjectName("warn")
+        self.setStyleSheet(f"QFrame#warn {{ background: {T.BG}; }}")
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(sc(20), sc(20), sc(20), sc(20))
+        lay.setContentsMargins(sc(10), sc(10), sc(10), sc(10))
+        lay.setSpacing(sc(2))
         lay.addStretch(1)
-        lay.addWidget(T.label(sc, "Still there?", 34, T.ACCENT, True))
-        lay.addWidget(T.label(sc, "Press any button to continue.", 17, T.TEXT, True, wrap=True))
-        self.count = T.label(sc, "", 26, T.TEXT, True)
+        lay.addWidget(T.label(sc, "No button pressed for a while", 17, T.MUTED))
+        lay.addWidget(T.label(sc, "Still there?", 38, T.TEXT, True))
+        self.count = T.label(sc, "", 26, T.ACCENT, True)
         lay.addWidget(self.count)
         self.credit = T.label(sc, "", 14, "#FF9C9C", True, wrap=True)
         lay.addWidget(self.credit)
+        lay.addStretch(1)
+        lay.addWidget(T.label(sc, "Press any button to continue", 17, T.TEXT, True))
         lay.addStretch(1)
         self.hide()
 
     def refresh(self) -> None:
         k = self.ctx.kiosk
-        self.count.setText(f"Cancelling in {k.warning_seconds_left} s")
-        self.credit.setText(
-            f"Your {self.ctx.money(k.credit)} credit will be forfeited if the order is cancelled."
-            if k.credit else "")
+        sec = f"Cancelling in {k.warning_seconds_left} s"
+        if self.count.text() != sec:
+            self.count.setText(sec)
+        cr = (f"Your {self.ctx.money(k.credit)} will be forfeited if cancelled" if k.credit else "")
+        if self.credit.text() != cr:
+            self.credit.setText(cr)
+        self.credit.setVisible(bool(cr))
 
 
 class MainWindow(QWidget):
