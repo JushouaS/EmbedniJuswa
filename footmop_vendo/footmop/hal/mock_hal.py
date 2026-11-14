@@ -2,12 +2,11 @@
 
 Keyboard (forwarded from the Qt window):
   Left / A   = GREEN button        Right / D = BLUE button
-  (hold Enter 2 s in admin = exit admin)
   Enter/Space/S = WHITE button     C or 5    = insert a P5 coin
   N          = electrical noise burst on the coin line (should be rejected)
   J          = toggle "motor jam" (next dispense fails)
   B          = toggle "chute blocked" (sensor stuck active)
-  Hold Left+Right 3 s = admin
+  Left,Right,Left,Right,Left (quick taps) = admin
 """
 from __future__ import annotations
 
@@ -44,7 +43,7 @@ class MockHAL(HAL):
         self._on_button = on_button
         self._on_edge = on_coin_edge
         log.info("MOCK hardware active. Keys: Left/Right/Enter buttons, C=coin, N=noise, "
-                 "J=jam, B=chute blocked, hold Left+Right 3s=admin")
+                 "J=jam, B=chute blocked, taps Left Right Left Right Left = admin")
 
     def close(self) -> None:
         self.force_motor_off()

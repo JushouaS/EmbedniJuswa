@@ -371,25 +371,25 @@ class FaultScreen(Screen):
 
 
 # ==================================================================== admin
-EXIT_HINT = "Hold WHITE 2 s to exit admin"
+CANCEL = "✕"          # the extra "digit" that means cancel / exit
 
 
-class AdminPinScreen(Screen):
-    show_header = True
+class DigitEntry(QWidget):
+    """Enter a number one digit at a time with short presses only.
+    GREEN = digit -1, BLUE = digit +1, WHITE = next digit (done after the
+    last). Each digit cycles 0-9 and then CANCEL; WHITE on CANCEL cancels."""
 
-    """PIN entry with three buttons: GREEN/BLUE change the digit, WHITE moves
-    on (and submits after the last digit)."""
-
-    def __init__(self, ctx: Ctx):
-        super().__init__(ctx)
+    def __init__(self, ctx: Ctx, length: int):
+        super().__init__()
+        self.ctx = ctx
         sc = ctx.sc
-        self.length = len(str(ctx.cfg.admin.pin))
-        self.body.addWidget(T.label(sc, "Admin PIN", 20, T.TEXT, True))
-        row = QHBoxLayout()
+        self.length = length
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(sc(10))
         row.addStretch(1)
         self.boxes: List[QLabel] = []
-        for _ in range(self.length):
+        for _ in range(length):
             b = QLabel()
             b.setAlignment(Qt.AlignCenter)
             b.setFont(T.font(sc, 34, True))
@@ -397,52 +397,105 @@ class AdminPinScreen(Screen):
             row.addWidget(b)
             self.boxes.append(b)
         row.addStretch(1)
-        self.body.addLayout(row, 1)
-        self.msg = T.label(sc, "", 14, T.ACCENT, True)
-        self.body.addWidget(self.msg)
-        self.body.addWidget(T.label(sc, EXIT_HINT, 12, T.MUTED))
-        self._style_cache: List[Optional[str]] = [None] * self.length
-        self.on_show()
+        self._styles: List[Optional[str]] = [None] * length
+        self.reset()
 
-    def on_show(self) -> None:
-        self.digits = [0] * self.length
+    def reset(self, value: Optional[int] = None, secret: bool = False) -> None:
+        self.secret = secret
+        text = "0" * self.length if value is None else str(max(0, value)).zfill(self.length)[-self.length:]
+        self.digits = [int(c) for c in text]          # 10 == CANCEL
         self.pos = 0
-        _set(self.msg, "")
+        self.paint()
 
-    def nav(self, btn: Btn, pressed: bool) -> None:
-        k = self.ctx.kiosk
-        if pressed and btn in (Btn.GREEN, Btn.BLUE):
+    def press(self, btn: Btn):
+        """Returns None, ("done", "0123") or ("cancel",)."""
+        if btn in (Btn.GREEN, Btn.BLUE):
             d = -1 if btn == Btn.GREEN else 1
-            self.digits[self.pos] = (self.digits[self.pos] + d) % 10
-            _set(self.msg, "")
-        elif not pressed and btn == Btn.WHITE:
+            self.digits[self.pos] = (self.digits[self.pos] + d) % 11
+        elif btn == Btn.WHITE:
+            if self.digits[self.pos] == 10:
+                return ("cancel",)
             if self.pos < self.length - 1:
                 self.pos += 1
             else:
-                ok = k.submit_pin("".join(map(str, self.digits)))
-                if ok:
-                    return
-                self.on_show()
-                _set(self.msg, f"Locked - wait {k.pin_locked_seconds}s"
-                     if k.pin_locked_seconds else "Wrong PIN - try again")
+                return ("done", "".join(map(str, self.digits)))
+        self.paint()
+        return None
+
+    @property
+    def on_last(self) -> bool:
+        return self.pos == self.length - 1
+
+    @property
+    def on_cancel(self) -> bool:
+        return self.digits[self.pos] == 10
+
+    def paint(self) -> None:
+        sc = self.ctx.sc
+        for i, b in enumerate(self.boxes):
+            active = i == self.pos
+            d = self.digits[i]
+            if active:
+                txt = CANCEL if d == 10 else str(d)
+            elif self.secret:
+                txt = "•" if i < self.pos else ""
+            else:
+                txt = str(d) if d != 10 else "0"
+            _set(b, txt)
+            cancel = active and d == 10
+            style = (f"background: {T.DANGER if cancel else (T.PANEL_HI if active else T.PANEL)};"
+                     f" color: {T.TEXT}; border-radius: {sc(10)}px; border: {sc(3)}px solid "
+                     f"{T.ACCENT if active else 'transparent'};")
+            if self._styles[i] != style:
+                self._styles[i] = style
+                b.setStyleSheet(style)
+
+    def legend(self, bar: "LegendBar", done_label: str) -> None:
+        white = "Cancel" if self.on_cancel else (done_label if self.on_last else "Next →")
+        bar.set(green="− 1", white=white, blue="+ 1")
+
+
+class AdminPinScreen(Screen):
+    show_header = True
+
+    def __init__(self, ctx: Ctx):
+        super().__init__(ctx)
+        sc = ctx.sc
+        self.body.addWidget(T.label(sc, "Admin PIN", 20, T.TEXT, True))
+        self.entry = DigitEntry(ctx, len(str(ctx.cfg.admin.pin)))
+        self.body.addWidget(self.entry, 1)
+        self.msg = T.label(sc, "", 14, T.ACCENT, True)
+        self.body.addWidget(self.msg)
+        self.body.addWidget(T.label(sc, f"To go back: choose {CANCEL} and press WHITE", 12, T.MUTED))
+
+    def on_show(self) -> None:
+        self.entry.reset(secret=True)
+        _set(self.msg, "")
+
+    def nav(self, btn: Btn, pressed: bool) -> None:
+        if not pressed:
+            return
+        k = self.ctx.kiosk
+        res = self.entry.press(btn)
+        if res and res[0] == "cancel":
+            k.exit_admin()
+            return
+        if res and res[0] == "done":
+            if k.submit_pin(res[1]):
+                return
+            self.entry.reset(secret=True)
+            _set(self.msg, f"Locked - wait {k.pin_locked_seconds}s"
+                 if k.pin_locked_seconds else "Wrong PIN - try again")
+        elif btn != Btn.WHITE:
+            _set(self.msg, "")
         self.refresh()
 
     def refresh(self) -> None:
-        sc = self.ctx.sc
         k = self.ctx.kiosk
         if k.pin_locked_seconds:
             _set(self.msg, f"Locked - wait {k.pin_locked_seconds}s")
-        for i, b in enumerate(self.boxes):
-            active = i == self.pos
-            _set(b, str(self.digits[i]) if active else ("•" if i < self.pos else ""))
-            style = (f"background: {T.PANEL_HI if active else T.PANEL}; color: {T.TEXT};"
-                     f" border-radius: {sc(10)}px; border: {sc(3)}px solid "
-                     f"{T.ACCENT if active else 'transparent'};")
-            if self._style_cache[i] != style:
-                self._style_cache[i] = style
-                b.setStyleSheet(style)
-        last = self.pos == self.length - 1
-        self.legend.set(green="− 1", white="Enter" if last else "Next →", blue="+ 1")
+        self.entry.paint()
+        self.entry.legend(self.legend, "Enter")
         _set(self.header.status, "ADMIN")
 
 
@@ -495,13 +548,12 @@ class ListBox(QWidget):
 
 
 class AdminScreen(Screen):
-    show_header = True
-
-    """Admin pages, all operable with the three buttons:
-      list pages   GREEN up / BLUE down / WHITE select
-      value pages  GREEN - / BLUE + (hold to repeat; stock speeds up) / WHITE save
+    """Admin pages, all operated with single short presses:
+      list pages    GREEN up / BLUE down / WHITE select
+      stock, price  digit entry: GREEN -1 / BLUE +1 / WHITE next digit, save after the last
     """
 
+    show_header = True
     TITLES = {"menu": "Admin menu", "stock": "Set stock", "price": "Set price per footmop",
               "faults": "Faults", "hw": "Hardware test", "sales": "Sales report"}
 
@@ -512,20 +564,16 @@ class AdminScreen(Screen):
         self.body.addWidget(self.title)
         self.info = T.label(sc, "", 12, T.TEXT, align=Qt.AlignLeft | Qt.AlignTop, wrap=True)
         self.body.addWidget(self.info, 1)
-        self.value = T.label(sc, "", 50, T.TEXT, True)
-        self.body.addWidget(self.value, 2)
+        self.stock_entry = DigitEntry(ctx, 4)
+        self.price_entry = DigitEntry(ctx, 3)
+        self.body.addWidget(self.stock_entry, 2)
+        self.body.addWidget(self.price_entry, 2)
         self.list = ListBox(ctx)
         self.body.addWidget(self.list)
         self.msg = T.label(sc, "", 12, T.ACCENT, True)
         self.msg.setFixedHeight(sc(16))
         self.body.addWidget(self.msg)
-
         self.page = "menu"
-        self.draft = 0
-        self._repeat_dir = 0
-        self._repeat_n = 0
-        self.repeat = QTimer(self)
-        self.repeat.timeout.connect(self._repeat_step)
         self.live = QTimer(self)
         self.live.setInterval(300)
         self.live.timeout.connect(self.refresh)
@@ -548,16 +596,16 @@ class AdminScreen(Screen):
             return [("Test dispense 1 item", k.admin_test_dispense), back]
         return [back]
 
-    def go(self, page: str) -> None:
+    def go(self, page: str, keep_message: bool = False) -> None:
         k = self.ctx.kiosk
-        k.admin_message = ""
+        if not keep_message:
+            k.admin_message = ""
         self.page = page
         if page == "stock":
-            self.draft = k.stock
+            self.stock_entry.reset(k.stock)
         elif page == "price":
-            self.draft = k.price
+            self.price_entry.reset(k.price)
         self.list.index = 0
-        self.repeat.stop()
         (self.live.start if page == "hw" else self.live.stop)()
         self.refresh()
 
@@ -566,71 +614,58 @@ class AdminScreen(Screen):
 
     # ------------------------------------------------------------ input
     def nav(self, btn: Btn, pressed: bool) -> None:
+        if not pressed:
+            return
         k = self.ctx.kiosk
         if self.page in ("stock", "price"):
-            if btn in (Btn.GREEN, Btn.BLUE):
-                if pressed:
-                    self._repeat_dir = -1 if btn == Btn.GREEN else 1
-                    self._repeat_n = 0
-                    self._adjust(self._repeat_dir)
-                    self.repeat.start(450)          # first repeat after 0.45 s
-                else:
-                    self.repeat.stop()
-            elif btn == Btn.WHITE and not pressed:
+            entry = self.stock_entry if self.page == "stock" else self.price_entry
+            res = entry.press(btn)
+            if res and res[0] == "cancel":
+                k.admin_message = "Not changed"
+                self.go("menu", keep_message=True)
+                return
+            if res and res[0] == "done":
+                value = int(res[1])
                 if self.page == "stock":
-                    k.admin_set_stock(self.draft)
+                    k.admin_set_stock(value)
                 else:
-                    k.admin_set_price(self.draft)
-                msg = k.admin_message
-                self.go("menu")
-                k.admin_message = msg
-                self.refresh()
+                    k.admin_set_price(value)
+                self.go("menu", keep_message=True)
+                return
+            self.refresh()
             return
-        if not pressed and btn == Btn.WHITE:
+        if btn == Btn.WHITE:
             items = self.page_items()
             if items:
                 items[min(self.list.index, len(items) - 1)][1]()
                 if k.state.value == "ADMIN":
                     self.refresh()
-        elif pressed and btn == Btn.GREEN:
+        elif btn == Btn.GREEN:
             self.list.move(-1)
-        elif pressed and btn == Btn.BLUE:
+        elif btn == Btn.BLUE:
             self.list.move(1)
-
-    def _repeat_step(self) -> None:
-        self._repeat_n += 1
-        self.ctx.kiosk.note_activity()
-        self.repeat.setInterval(90)
-        fast = self._repeat_n > 15 and self.page == "stock"
-        self._adjust(self._repeat_dir * (5 if fast else 1))
-
-    def _adjust(self, d: int) -> None:
-        if self.page == "stock":
-            self.draft = max(0, min(9999, self.draft + d))
-        else:
-            cv = self.ctx.cfg.coin.value
-            self.draft = max(cv, min(1000, self.draft + d * cv))
-        self.refresh()
 
     # ----------------------------------------------------------- render
     def refresh(self) -> None:
         k, m = self.ctx.kiosk, self.ctx.money
         _set(self.header.status, f"ADMIN • Stock {k.stock} • {m(k.price)}")
-        _set(self.msg, k.admin_message or EXIT_HINT)
         p = self.page
         value_page = p in ("stock", "price")
-        self.value.setVisible(value_page)
+        self.stock_entry.setVisible(p == "stock")
+        self.price_entry.setVisible(p == "price")
         self.list.setVisible(not value_page)
         _set(self.title, self.TITLES[p])
 
         if value_page:
-            cur = k.stock if p == "stock" else k.price
+            entry = self.stock_entry if p == "stock" else self.price_entry
+            cur = str(k.stock) if p == "stock" else m(k.price)
+            extra = "" if p == "stock" else f"  (must be a multiple of {m(self.ctx.cfg.coin.value)})"
             self.info.setVisible(True)
-            _set(self.value, str(self.draft) if p == "stock" else m(self.draft))
-            _set(self.info, f"Current: {cur if p == 'stock' else m(cur)}"
-                 + ("     (hold − / + to change fast)" if p == "stock" else ""))
-            step = "1" if p == "stock" else m(self.ctx.cfg.coin.value)
-            self.legend.set(green=f"− {step}", white="Save", blue=f"+ {step}")
+            _set(self.info, f"Current: {cur}{extra}\nSet each digit, WHITE moves to the next. "
+                            f"Choose {CANCEL} + WHITE to cancel.")
+            _set(self.msg, k.admin_message)
+            entry.paint()
+            entry.legend(self.legend, "Save")
             return
 
         text = ""
@@ -658,5 +693,6 @@ class AdminScreen(Screen):
                     f"Items owed to customers: {s['owed_items']}")
         self.info.setVisible(bool(text))
         _set(self.info, text)
+        _set(self.msg, k.admin_message or ('Choose "Exit admin" to leave' if p == "menu" else ""))
         self.list.set_items([label for label, _ in self.page_items()])
         self.legend.set(green="▲ Up", white="Select", blue="▼ Down")

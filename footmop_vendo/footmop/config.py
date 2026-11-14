@@ -35,8 +35,9 @@ class TimingCfg:
     inactivity_timeout_s: float = 60.0   # idle time in Quantity/Payment before warning
     warning_countdown_s: float = 15.0    # "Still there?" countdown before cancelling
     success_screen_s: float = 6.0
-    admin_hold_s: float = 3.0            # hold GREEN+BLUE this long to open admin
-    admin_exit_hold_s: float = 2.0       # hold WHITE this long to leave admin
+    admin_sequence: str = "GBGBG"        # short presses (G=GREEN, B=BLUE) that open admin
+    admin_sequence_window_s: float = 5.0 # ...all within this many seconds
+    admin_pin_idle_s: float = 30.0       # PIN screen closes itself after this long idle
     admin_idle_timeout_s: float = 120.0
     admin_pin_lockout_s: float = 60.0
     admin_pin_max_attempts: int = 5

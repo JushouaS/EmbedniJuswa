@@ -74,9 +74,17 @@ class Walkthrough:
         for _ in range(n):
             self.add(gap, self.press(btn))
 
-    def hold(self, btn, ms):
-        self.add(100, lambda: self.hal.press(btn, True))
-        self.add(ms, lambda: self.hal.press(btn, False))
+    def type_number(self, current, target, length):
+        """Short presses to change a DigitEntry from `current` to `target`."""
+        cur = str(current).zfill(length)[-length:]
+        tgt = str(target).zfill(length)
+        for c, t in zip(cur, tgt):
+            diff = (int(t) - int(c)) % 11          # digits cycle 0-9 + X
+            btn = Btn.BLUE if diff <= 5 else Btn.GREEN
+            n = diff if diff <= 5 else 11 - diff
+            for _ in range(n):
+                self.hal.press(btn, True); self.hal.press(btn, False)
+            self.hal.press(Btn.WHITE, True); self.hal.press(Btn.WHITE, False)
 
     # script ----------------------------------------------------------------
     def _build(self):
@@ -122,9 +130,9 @@ class Walkthrough:
         a(100, self.hal.toggle_jam)
         self.tap(W); a(200, self.expect(State.FAULT))   # locked
 
-        # admin: hold GREEN+BLUE, PIN with buttons only
-        a(100, lambda: (self.hal.press(G, True), self.hal.press(B, True)))
-        a(3400, lambda: (self.hal.press(G, False), self.hal.press(B, False)))
+        # admin: secret short-press sequence G B G B G, PIN digit by digit
+        for ch in self.k.cfg.timing.admin_sequence:
+            self.tap(G if ch == "G" else B, gap=200)
         a(300, self.expect(State.ADMIN_PIN))
         pin = str(self.k.cfg.admin.pin)
         for i, ch in enumerate(pin):
@@ -138,16 +146,26 @@ class Walkthrough:
         self.tap(W)                                      # Clear all faults
         self.tap(W)                                      # Back
         self.tap(W)                                      # Stock / Restock (index 0)
-        self.hold(B, 1800)                               # hold + : auto-repeat
-        a(300, self.shot("admin_stock"))
-        self.tap(W)                                      # Save
+        a(300, self.shot("admin_stock_before"))
+        a(100, lambda: self.type_number(self.k.stock, 24, 4))
+        a(1500, self.shot("admin_stock_saved"))
+        a(0, lambda: None if self.k.stock == 24 else self.failures.append(f"stock {self.k.stock} != 24"))
         self.tap(B, 4); self.tap(W)                      # -> Sales report
         a(300, self.shot("admin_sales"))
         self.tap(W)                                      # Back
         self.tap(B, 3); self.tap(W)                      # -> Test hardware
         a(100, self.hal.insert_coin)
         a(700, self.shot("admin_hw_test"))
-        self.hold(W, 2300)                               # hold WHITE = exit admin
+        self.tap(B); self.tap(W)                         # Back
+        self.tap(B, 5); self.tap(W)                      # Exit admin (short press)
+        a(400, self.expect(State.LANDING))
+        # PIN screen can be cancelled with the X "digit"
+        for ch in self.k.cfg.timing.admin_sequence:
+            self.tap(G if ch == "G" else B, gap=200)
+        a(300, self.expect(State.ADMIN_PIN))
+        self.tap(G)                                      # 0 -> X
+        a(200, self.shot("admin_pin_cancel"))
+        self.tap(W)
         a(400, self.expect(State.LANDING))
 
         # sold out

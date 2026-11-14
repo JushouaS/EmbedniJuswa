@@ -89,16 +89,21 @@ the physical buttons, labelled with what each button does right now.
 
 ## Admin
 
-Admin mode can be opened from the Landing, Sold out or Fault screen:
+The buttons only register **short presses**. Nothing in the kiosk uses a long
+press or holding two buttons at once.
 
-- **Open admin:** hold **GREEN + BLUE for 3 s**, then enter the PIN:
-  GREEN/BLUE change the highlighted digit, WHITE moves to the next digit and
-  submits after the last one.
+Admin mode can be opened from the Welcome, Sold out or Fault screen:
+
+- **Open admin:** quickly press **GREEN, BLUE, GREEN, BLUE, GREEN** (within
+  5 s). GREEN and BLUE do nothing else on those screens, so customers won't
+  trigger it. The sequence can be changed with `admin_sequence` in the config.
+- **PIN, stock and price** are entered one digit at a time:
+  - GREEN = digit −1, BLUE = digit +1.
+  - WHITE = next digit; on the last digit, WHITE enters or saves.
+  - Each digit cycles 0–9 and then **✕**. WHITE on ✕ cancels.
 - **Menus:** GREEN = up, BLUE = down, WHITE = select.
-- **Stock and price:** GREEN = −, BLUE = +, WHITE = save. Hold + or − to
-  repeat; stock speeds up after about 2 s.
-- **Exit:** hold **WHITE for 2 s** on any admin page (or pick "Exit admin").
-  Admin also closes itself after 2 minutes idle.
+- **Exit:** choose **Exit admin** in the menu, or ✕ on the PIN screen. Admin
+  also closes itself after 2 minutes idle (30 s on the PIN screen).
 - **Lockout:** 5 wrong PINs lock the keypad for 60 s.
 
 Admin pages:
@@ -131,7 +136,7 @@ python3 -m footmop --mock --windowed --size 800x480 --seed-stock 10
 | N                         | coin-line noise (should be rejected)       |
 | J                         | toggle motor jam                           |
 | B                         | toggle chute blocked                       |
-| hold ← + → for 3 s        | admin (PIN 1234); hold Enter 2 s to leave  |
+| ← → ← → ← (quick taps)    | admin (PIN 1234); leave via "Exit admin"   |
 | Esc                       | quit                                       |
 
 To run the unit tests: `python3 -m pytest -q`
@@ -188,7 +193,7 @@ footmop/
 deploy/                installer, systemd unit, launcher, relay-off hook
 docs/                  wiring + display setup
 tools/coin_probe.py    measure real coin pulse widths
-tests/                 39 unit tests (state machine, decoder, debounce, store, dispenser)
+tests/                 41 unit tests (state machine, decoder, debounce, store, dispenser)
 ```
 
 ## Not yet verified on real hardware

@@ -56,8 +56,8 @@ A 480×320 window opens. That is the same size as the 3.5" screen.
 | **N** | Send electrical noise on the coin wire (should be ignored) |
 | **J** | Turn motor jam on/off. The next purchase fails and locks the machine |
 | **B** | Turn "chute blocked" on/off |
-| Hold **← + →** for 3 s | Open admin (PIN **1234**) |
-| Hold **Enter** for 2 s | Leave admin |
+| Tap **← → ← → ←** quickly | Open admin (PIN **1234**) |
+| Menu → **Exit admin** | Leave admin |
 | **Esc** | Quit |
 
 ### 5. Things to try
@@ -81,8 +81,8 @@ A 480×320 window opens. That is the same size as the 3.5" screen.
       The screen turns red and says "OUT OF SERVICE".
    2. Open admin, then go to **Faults** → **Clear all faults**.
    3. Press J again to stop simulating the jam.
-6. **Restock:** in admin, go to **Stock / Restock**. Hold → to count up
-   quickly, then press Enter to save.
+6. **Restock:** in admin, go to **Stock / Restock**. Set each digit with ←/→
+   and press Enter to move to the next. Enter on the last digit saves.
 
 ### 6. Run the tests (optional)
 
@@ -91,7 +91,7 @@ py -m pip install pytest
 py -m pytest -q
 ```
 
-You should see `39 passed`.
+You should see `41 passed`.
 
 ---
 
@@ -205,17 +205,18 @@ This does the following:
 The kiosk starts by itself after boot. On first start it shows **SOLD OUT**,
 because the stock is 0.
 
-1. Hold **GREEN + BLUE for 3 s**, then enter your PIN.
+1. Quickly press **GREEN, BLUE, GREEN, BLUE, GREEN**, then enter your PIN.
    - GREEN/BLUE change the digit.
    - WHITE goes to the next digit and submits after the last one.
+   - To back out, press GREEN until the digit shows **✕**, then press WHITE.
 2. Go to **Test hardware**. Press each button: its level should change on
    screen. Insert a coin: you should see `COIN +P5`. Hold a footmop in front
    of the sensor: it should change to `BLOCKED`.
 3. Select **Test dispense 1 item**. The motor should turn and drop one
    footmop.
-4. Go back, open **Stock / Restock**, set the real count and press WHITE to
-   save.
-5. Hold **WHITE for 2 s** to leave admin. The welcome screen appears.
+4. Go back, open **Stock / Restock**, and set the real count one digit at a
+   time. WHITE on the last digit saves.
+5. Choose **Exit admin**. The welcome screen appears.
 
 **If coins are not counted (or counted twice),** measure the acceptor's
 pulses:
@@ -238,11 +239,11 @@ Insert some coins and note the `width=` values it prints. Then:
 
 | Task | How |
 |---|---|
-| Restock | GREEN + BLUE 3 s → PIN → **Stock / Restock** → BLUE/GREEN → WHITE to save |
-| Change price | Admin → **Price** (steps of ₱5) → WHITE to save |
+| Restock | Press G B G B G → PIN → **Stock / Restock** → set each digit (GREEN/BLUE), WHITE = next / save |
+| Change price | Admin → **Price** → set digits (must be a multiple of ₱5) → WHITE on the last digit saves |
 | "OUT OF SERVICE" | Fix the cause (jammed footmop, blocked chute) → Admin → **Faults** → **Clear all faults**. The screen shows how many items are owed to the customer; give those by hand |
 | See sales | Admin → **Sales report** |
-| Leave admin | Hold WHITE 2 s (or it closes by itself after 2 min) |
+| Leave admin | Menu → **Exit admin** (or it closes by itself after 2 min) |
 
 ## Useful commands on the Pi (over SSH)
 

@@ -332,14 +332,18 @@ def test_dispense_watchdog(k):
     assert k.store.active_fault()["code"] == "dispense_timeout"
 
 
-def test_admin_combo_pin_and_clear_fault(k):
+def tap_sequence(k, seq="GBGBG", gap=0.3):
+    for ch in seq:
+        k.press(Btn.GREEN if ch == "G" else Btn.BLUE)
+        k.release(Btn.GREEN if ch == "G" else Btn.BLUE)
+        k.clock.t += gap
+
+
+def test_admin_sequence_pin_and_clear_fault(k):
     k.store.add_fault("x", "test")
     k._go_home()
     assert k.state == State.FAULT
-    k.press(Btn.GREEN)
-    k.press(Btn.BLUE)
-    k.clock.t += 3.1
-    k.tick()
+    tap_sequence(k)                      # short presses only
     assert k.state == State.ADMIN_PIN
     assert not k.submit_pin("0000")
     assert k.submit_pin("1234")
@@ -352,12 +356,27 @@ def test_admin_combo_pin_and_clear_fault(k):
     assert k.state == State.LANDING and k.stock == 20 and k.price == 30
 
 
-def test_admin_combo_not_available_mid_transaction(k):
-    k.action("start")
-    k.press(Btn.BLUE)
+def test_admin_sequence_too_slow_or_wrong_does_nothing(k):
+    tap_sequence(k, gap=2.0)             # 8 s total > 5 s window
+    assert k.state == State.LANDING
+    tap_sequence(k, "GBGGB")
+    assert k.state == State.LANDING
+
+
+def test_no_long_press_actions(k):
+    """Holding buttons for a long time must never trigger anything."""
     k.press(Btn.GREEN)
-    k.clock.t += 5
+    k.press(Btn.BLUE)
+    k.clock.t += 10
     k.tick()
+    assert k.state == State.LANDING
+
+
+def test_admin_sequence_not_available_mid_transaction(k):
+    k.store.set_stock(50)
+    k.action("start")
+    k.action("inc")
+    tap_sequence(k, "BGBGB")
     assert k.state == State.QUANTITY
 
 
@@ -500,11 +519,6 @@ def test_green_at_qty_one_cancels_when_unpaid(k):
     k.press(Btn.WHITE)
     k.press(Btn.GREEN)
     assert k.state == State.LANDING
-    # still holding GREEN, then BLUE: must NOT open admin (held across screen change)
-    k.press(Btn.BLUE)
-    k.clock.t += 5
-    k.tick()
-    assert k.state == State.LANDING
 
 
 def test_default_limit_is_stock_and_cannot_go_below_paid(tmp_path):
@@ -530,14 +544,14 @@ def test_default_limit_is_stock_and_cannot_go_below_paid(tmp_path):
     assert kk.state == State.DISPENSING and kk.overpaid == 0
 
 
-def test_white_hold_exits_admin_without_selecting(k):
+def test_admin_presses_go_to_admin_ui(k):
     navs = []
     k.admin_nav = lambda b, p: navs.append((b, p))
-    k.open_admin()
+    tap_sequence(k)
     k.submit_pin("1234")
     k.press(Btn.WHITE)
-    k.clock.t += 2.1
+    k.clock.t += 3
     k.tick()
-    assert k.state == State.LANDING
     k.release(Btn.WHITE)
-    assert navs == [(Btn.WHITE, True)]   # no release->select after exiting
+    assert k.state == State.ADMIN          # holding WHITE does not exit
+    assert navs == [(Btn.WHITE, True)]

@@ -14,8 +14,9 @@ max_per_transaction = 0      # 0 = no cap; customers can buy up to the stock ava
 inactivity_timeout_s = 60    # idle time in Quantity/Payment before "Still there?"
 warning_countdown_s = 15     # countdown before the order is cancelled
 success_screen_s = 6
-admin_hold_s = 3             # hold GREEN + BLUE this long (Landing/Sold out/Fault) for admin
-admin_exit_hold_s = 2        # hold WHITE this long to leave admin
+admin_sequence = "GBGBG"     # press GREEN,BLUE,GREEN,BLUE,GREEN (Welcome/Sold out/Fault) for admin
+admin_sequence_window_s = 5  # ...within this many seconds. No long presses anywhere.
+admin_pin_idle_s = 30        # PIN screen closes itself after this long without a press
 admin_idle_timeout_s = 120
 admin_pin_lockout_s = 60
 admin_pin_max_attempts = 5

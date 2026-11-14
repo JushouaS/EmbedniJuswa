@@ -15,7 +15,7 @@ from __future__ import annotations
 import enum
 import logging
 import time
-from typing import Callable, Dict, List, Optional
+from typing import Callable, List, Optional, Tuple
 
 from ..config import Config
 from . import store as st
@@ -79,9 +79,8 @@ class Kiosk:
         self.warning_deadline = 0.0
         self._last_activity = clock()
 
-        self._held: Dict[Btn, float] = {}
-        self._combo_fired = False
-        self._white_hold_fired = False
+        # Recent GREEN/BLUE presses on the entry screens, for the admin sequence.
+        self._seq: List[Tuple[Btn, float]] = []
         self._last_warn_sec = -1
 
         self._dispense_token = 0
@@ -172,10 +171,7 @@ class Kiosk:
         self.warning = False
         self._last_warn_sec = -1
         self._last_activity = self.clock()
-        if Btn.GREEN in self._held or Btn.BLUE in self._held:
-            # A button held across a screen change must be released before it
-            # can count towards the GREEN+BLUE admin combo.
-            self._combo_fired = True
+        self._seq = []
         # Only matters if a coin-inhibit relay is wired (pins.coin_enable).
         self.fx.set_coin_acceptor(state in COIN_ACCEPTING_STATES or state == State.ADMIN)
         self._changed()
@@ -211,12 +207,14 @@ class Kiosk:
 
     # =============================================================== buttons
     def press(self, btn: Btn) -> None:
+        """Every button acts on a short press - there are NO long-press actions."""
         now = self.clock()
-        self._held[btn] = now
         self.admin_live_event(f"{btn.name} pressed")
         if self._activity():
             return
         s = self.state
+        if s in ADMIN_ENTRY_STATES and self._check_admin_sequence(btn, now):
+            return
         if s in (State.ADMIN, State.ADMIN_PIN):
             if self.admin_nav:
                 self.admin_nav(btn, True)
@@ -232,18 +230,26 @@ class Kiosk:
             self.action(act)
 
     def release(self, btn: Btn) -> None:
-        self._held.pop(btn, None)
+        # Releases carry no meaning (no long presses); only logged for the test page.
         self.admin_live_event(f"{btn.name} released")
-        if Btn.GREEN not in self._held and Btn.BLUE not in self._held:
-            self._combo_fired = False
+
+    def _check_admin_sequence(self, btn: Btn, now: float) -> bool:
+        """Secret short-press sequence (default G B G B G within 5 s) opens admin
+        from the welcome / sold-out / fault screens, where GREEN and BLUE
+        otherwise do nothing."""
+        seq = self.cfg.timing.admin_sequence.upper()
+        window = self.cfg.timing.admin_sequence_window_s
         if btn == Btn.WHITE:
-            fired, self._white_hold_fired = self._white_hold_fired, False
-            if fired:
-                return  # that hold already exited admin; don't also "select"
-        if self.state in (State.ADMIN, State.ADMIN_PIN) and self.admin_nav:
-            self.admin_nav(btn, False)
-        self._white_hold_fired = False
-        self._last_warn_sec = -1
+            self._seq = []
+            return False
+        self._seq = [(b, t) for b, t in self._seq if now - t <= window] + [(btn, now)]
+        self._seq = self._seq[-len(seq):]
+        typed = "".join("G" if b == Btn.GREEN else "B" for b, _ in self._seq)
+        if typed == seq:
+            self._seq = []
+            self.open_admin()
+            return True
+        return False
 
     # ================================================================ touch
     def action(self, name: str) -> None:
@@ -491,23 +497,6 @@ class Kiosk:
             self.toast = ""
             changed = True
 
-        # GREEN + BLUE held -> admin
-        if (Btn.GREEN in self._held and Btn.BLUE in self._held and not self._combo_fired
-                and self.state in ADMIN_ENTRY_STATES):
-            since = max(self._held[Btn.GREEN], self._held[Btn.BLUE])
-            if now - since >= self.cfg.timing.admin_hold_s:
-                self._combo_fired = True
-                self.open_admin()
-                return
-
-        # WHITE held in admin -> exit admin (there is no touch "Exit" button)
-        if (Btn.WHITE in self._held and not self._white_hold_fired and not self.admin_testing
-                and self.state in (State.ADMIN, State.ADMIN_PIN)
-                and now - self._held[Btn.WHITE] >= self.cfg.timing.admin_exit_hold_s):
-            self._white_hold_fired = True
-            self.exit_admin()
-            return
-
         s = self.state
         if s in TRANSACTION_STATES:
             idle = now - self._last_activity
@@ -540,7 +529,9 @@ class Kiosk:
                                    "Dispenser did not report back in time.")
             return
         elif s in (State.ADMIN, State.ADMIN_PIN) and not self.admin_testing:
-            if now - self._last_activity >= self.cfg.timing.admin_idle_timeout_s:
+            limit = (self.cfg.timing.admin_pin_idle_s if s == State.ADMIN_PIN
+                     else self.cfg.timing.admin_idle_timeout_s)
+            if now - self._last_activity >= limit:
                 self.exit_admin()
                 return
         if changed:
