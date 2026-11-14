@@ -129,8 +129,8 @@ python3 -m footmop --mock --windowed --size 800x480 --seed-stock 10
 
 | Key                       | Simulates                                  |
 |---------------------------|--------------------------------------------|
-| ← / A                     | GREEN button                               |
-| → / D                     | BLUE button                                |
+| ← or ↑ / A                | GREEN button                               |
+| → or ↓ / D                | BLUE button                                |
 | Enter / Space / S         | WHITE button                               |
 | C or 5                    | insert ₱5 coin (real pulse through the decoder) |
 | N                         | coin-line noise (should be rejected)       |

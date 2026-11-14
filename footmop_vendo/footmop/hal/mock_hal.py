@@ -1,7 +1,7 @@
 """Mock hardware for running the kiosk on a laptop/desktop.
 
 Keyboard (forwarded from the Qt window):
-  Left / A   = GREEN button        Right / D = BLUE button
+  Left/Up/A  = GREEN button        Right/Down/D = BLUE button
   Enter/Space/S = WHITE button     C or 5    = insert a P5 coin
   N          = electrical noise burst on the coin line (should be rejected)
   J          = toggle "motor jam" (next dispense fails)

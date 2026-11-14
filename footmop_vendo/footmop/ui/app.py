@@ -203,8 +203,10 @@ class MainWindow(QWidget):
             self.toast.hide()
 
     # --- keyboard: mock hardware + developer shortcuts
-    KEYMAP = {Qt.Key_Left: Btn.GREEN, Qt.Key_A: Btn.GREEN, Qt.Key_Right: Btn.BLUE,
-              Qt.Key_D: Btn.BLUE, Qt.Key_Return: Btn.WHITE, Qt.Key_Enter: Btn.WHITE,
+    # GREEN = Left / Up / A,  BLUE = Right / Down / D,  WHITE = Enter / Space / S
+    KEYMAP = {Qt.Key_Left: Btn.GREEN, Qt.Key_Up: Btn.GREEN, Qt.Key_A: Btn.GREEN,
+              Qt.Key_Right: Btn.BLUE, Qt.Key_Down: Btn.BLUE, Qt.Key_D: Btn.BLUE,
+              Qt.Key_Return: Btn.WHITE, Qt.Key_Enter: Btn.WHITE,
               Qt.Key_Space: Btn.WHITE, Qt.Key_S: Btn.WHITE}
 
     def keyPressEvent(self, ev) -> None:

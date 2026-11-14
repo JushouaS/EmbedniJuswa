@@ -49,8 +49,8 @@ A 480×320 window opens. That is the same size as the 3.5" screen.
 
 | Key | Does |
 |---|---|
-| **←** (or A) | GREEN button |
-| **→** (or D) | BLUE button |
+| **←** or **↑** (or A) | GREEN button |
+| **→** or **↓** (or D) | BLUE button |
 | **Enter** (or Space / S) | WHITE button |
 | **C** (or 5) | Insert a ₱5 coin (only counted on the payment screen) |
 | **N** | Send electrical noise on the coin wire (should be ignored) |
