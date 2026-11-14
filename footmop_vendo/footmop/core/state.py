@@ -50,7 +50,8 @@ class Effects:
     def force_motor_off(self) -> None: ...
 
 
-COIN_ACCEPTING_STATES = {State.LANDING, State.QUANTITY, State.PAYMENT}
+# Coins are only accepted on the Payment screen (and in admin, for testing).
+COIN_ACCEPTING_STATES = {State.PAYMENT}
 TRANSACTION_STATES = {State.QUANTITY, State.PAYMENT}
 ADMIN_ENTRY_STATES = {State.LANDING, State.SOLD_OUT, State.FAULT}
 
@@ -115,7 +116,8 @@ class Kiosk:
 
     @property
     def max_qty(self) -> int:
-        return max(0, min(self.stock, self.cfg.machine.max_per_transaction))
+        cap = self.cfg.machine.max_per_transaction
+        return max(0, min(self.stock, cap) if cap > 0 else self.stock)
 
     @property
     def coins_paid(self) -> int:
@@ -268,8 +270,7 @@ class Kiosk:
                 self._changed()
             elif name == "inc":
                 if self.qty >= self.max_qty:
-                    self._set_toast(f"Max {self.max_qty} per purchase" if self.max_qty == self.cfg.machine.max_per_transaction
-                                    else f"Only {self.max_qty} left in stock", 2.0)
+                    self._set_toast(f"Only {self.max_qty} available", 2.0)
                 self.qty = min(self.max_qty, self.qty + 1)
                 self._changed()
             elif name == "confirm":
@@ -302,31 +303,12 @@ class Kiosk:
         self._activity()
         self.admin_live_event(f"COIN +P{value} ({pulses} pulse)")
         s = self.state
-        if s == State.LANDING:
-            if self.stock <= 0:
-                self._unclaimed(value, pulses)
-                return
-            self.session_id = self.store.open_session(self.price)
-            self.qty = 1
+        if s == State.PAYMENT:
             self._credit(value, pulses)
-            self.qty = self.min_qty
-            self._enter(State.QUANTITY)
-        elif s in TRANSACTION_STATES:
-            self._credit(value, pulses)
-            if s == State.QUANTITY:
-                self.qty = max(self.qty, self.min_qty)   # coins first? follow the money
-            if s == State.PAYMENT and self.credit >= self.amount_due:
+            if self.credit >= self.amount_due:
                 self._begin_dispense()
             else:
                 self._changed()
-        elif s in (State.DISPENSING, State.SUCCESS):
-            # Someone inserted a coin while the previous order is finishing.
-            if self.next_session_id is None:
-                self.next_session_id = self.store.open_session(self.price)
-            self.store.add_coin(self.next_session_id, value, pulses, "next_order")
-            self.next_credit += value
-            self._set_toast(f"{self.cur}{self.next_credit} received - used for your next order")
-            self._changed()
         elif s == State.ADMIN:
             self.store.add_coin(None, value, pulses, "admin_test")
             self._changed()
@@ -349,6 +331,8 @@ class Kiosk:
         log.warning("coin P%d inserted in state %s - logged as unclaimed", value, self.state.value)
         if self.state == State.SOLD_OUT:
             self._set_toast("Sold out - coin logged. Please contact the owner.", 6)
+        elif self.state in (State.LANDING, State.QUANTITY, State.DISPENSING, State.SUCCESS):
+            self._set_toast("Coins are accepted only on the payment screen.", 5)
         else:
             self._set_toast("Machine unavailable - coin logged. Please contact the owner.", 6)
         self._changed()

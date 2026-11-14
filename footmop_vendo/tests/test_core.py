@@ -246,9 +246,14 @@ def test_sold_out_blocks_purchase(k):
     assert k.store.sales_summary()["unclaimed_coins"] == 5
 
 
-def test_coin_on_landing_starts_session_with_credit(k):
-    k.on_coin(5, 1)
-    assert k.state == State.QUANTITY and k.credit == 5
+def test_coin_outside_payment_is_not_credited(k):
+    k.on_coin(5, 1)                     # landing
+    assert k.state == State.LANDING and k.credit == 0
+    k.action("start")
+    k.on_coin(5, 1)                     # quantity screen
+    assert k.state == State.QUANTITY and k.credit == 0
+    assert k.store.sales_summary()["unclaimed_coins"] == 10
+    assert "payment screen" in k.toast
 
 
 def test_inactivity_warning_then_cancel_forfeits_credit(k):
@@ -288,12 +293,13 @@ def test_coin_during_warning_is_credited_and_dismisses(k):
     assert not k.warning and k.credit == 5
 
 
-def test_overpayment_recorded(k):
-    k.on_coin(5, 1)
-    for _ in range(5):
-        k.on_coin(5, 1)             # P30 credit while choosing qty
-    k.action("confirm")             # qty 1, P25 due -> dispense immediately
-    assert k.state == State.DISPENSING and k.overpaid == 5
+def test_no_overpayment_possible(k):
+    k.action("start")
+    k.action("confirm")
+    pay(k, 25)
+    assert k.state == State.DISPENSING and k.overpaid == 0
+    k.on_coin(5, 1)                     # extra coin while dispensing: not credited
+    assert k.credit == 25
 
 
 def test_dispense_fault_partial_locks_machine(k):
@@ -365,7 +371,7 @@ def test_pin_lockout(k):
     assert k.submit_pin("1234")
 
 
-def test_coin_during_dispensing_goes_to_next_order(k):
+def test_coin_during_dispensing_is_not_carried_to_next_order(k):
     k.action("start")
     k.action("confirm")
     pay(k, 25)
@@ -374,20 +380,26 @@ def test_coin_during_dispensing_goes_to_next_order(k):
     k.on_item_dropped(tok, 1)
     k.on_dispense_done(tok)
     k.action("done")
-    assert k.state == State.QUANTITY and k.credit == 5
+    assert k.state == State.LANDING and k.credit == 0
 
 
 def test_cancel_only_without_credit(k):
     k.action("start")
-    k.on_coin(5, 1)
-    k.action("cancel")
-    assert k.state == State.QUANTITY
-
-
-def test_coin_acceptor_inhibited_when_not_selling(k):
-    assert k.fx.coin_enabled is True
-    k.action("start")
+    k.action("inc")
     k.action("confirm")
+    k.on_coin(5, 1)                     # paid something on the payment screen
+    k.action("back")
+    assert k.state == State.QUANTITY and k.credit == 5
+    k.action("cancel")
+    assert k.state == State.QUANTITY    # can't cancel once coins are in
+
+
+def test_coin_acceptor_only_enabled_on_payment(k):
+    assert k.fx.coin_enabled is False   # LANDING
+    k.action("start")
+    assert k.fx.coin_enabled is False   # QUANTITY
+    k.action("confirm")
+    assert k.fx.coin_enabled is True    # PAYMENT
     pay(k, 25)
     assert k.fx.coin_enabled is False   # DISPENSING
 
@@ -495,22 +507,26 @@ def test_green_at_qty_one_cancels_when_unpaid(k):
     assert k.state == State.LANDING
 
 
-def test_cannot_go_below_paid_items_and_coins_drive_qty(tmp_path):
-    cfg = Config()                      # default price P5
+def test_default_limit_is_stock_and_cannot_go_below_paid(tmp_path):
+    cfg = Config()                      # default price P5, no per-purchase cap
     store = Store(str(tmp_path / "p.db"), cfg.machine.price_per_item)
-    store.set_stock(10)
+    store.set_stock(8)
     kk = Kiosk(cfg, store, FakeFx(), FakeClock())
     kk.boot()
-    assert kk.price == 5
-    for _ in range(3):
-        kk.on_coin(5, 1)                # coins first, from the landing screen
-    assert kk.state == State.QUANTITY and kk.qty == 3 and kk.min_qty == 3
-    kk.press(Btn.GREEN)
-    assert kk.qty == 3 and kk.state == State.QUANTITY
-    kk.press(Btn.BLUE)
+    assert kk.price == 5 and kk.max_qty == 8
     kk.press(Btn.WHITE)
-    assert kk.state == State.PAYMENT and kk.coins_needed == 1
-    kk.on_coin(5, 1)
+    for _ in range(10):
+        kk.press(Btn.BLUE)
+    assert kk.qty == 8                  # limited only by stock
+    kk.press(Btn.WHITE)
+    assert kk.state == State.PAYMENT and kk.coins_needed == 8
+    for _ in range(3):
+        kk.on_coin(5, 1)
+    kk.press(Btn.GREEN)                 # back to quantity with P15 paid
+    for _ in range(10):
+        kk.press(Btn.GREEN)
+    assert kk.state == State.QUANTITY and kk.qty == 3 and kk.min_qty == 3
+    kk.press(Btn.WHITE)                 # already paid for 3 -> dispense now
     assert kk.state == State.DISPENSING and kk.overpaid == 0
 
 

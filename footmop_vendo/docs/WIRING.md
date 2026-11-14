@@ -19,7 +19,7 @@ start if you configure a pin the screen uses.
 | TCRT5000 drop sensor | GPIO 26  | 37           | sensor module **DO** pin           |
 | Motor relay IN       | GPIO 20  | 38           | relay/MOSFET module input          |
 | GND                  | –        | 30, 34, 39   |                                    |
-| Coin inhibit (optional) | GPIO 21 | 40         | relay that powers the coin slot    |
+| Coin inhibit (recommended) | GPIO 21 | 40      | relay that powers the coin slot    |
 
 **Power for the sensor and modules.** The 3.3 V and 5 V pins (1, 2, 4, 17) are
 under the screen. To reach them, use one of:
@@ -95,13 +95,13 @@ it should show `pd` / `lo`.
 - Power the motor from its own supply, never from the Pi. Put a flyback diode
   (1N4007) across a DC motor.
 
-## Coin inhibit (optional but recommended)
+## Coin inhibit (strongly recommended)
 
-If you put a relay on the coin acceptor's 12 V supply line (GPIO 21) and set
-`pins.coin_enable = 21`, the coin slot only accepts coins while the machine
-is selling. That covers the Landing, Quantity and Payment screens. While
-sold out, faulted or dispensing, coins fall straight through to the return
-cup instead of being swallowed.
+The kiosk only accepts coins on the **Payment screen**. To enforce that
+physically, put a relay on the coin acceptor's 12 V supply line, driven by
+GPIO 21, and set `pins.coin_enable = 21`. The coin slot is then powered only
+while the Payment screen is showing. On every other screen, coins fall
+straight through to the return cup instead of being swallowed.
 
 Without the relay, coins inserted at those times are kept by the machine and
 **logged** (Admin → Sales report → Unclaimed coins).

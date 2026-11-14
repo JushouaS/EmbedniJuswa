@@ -2,7 +2,7 @@
 
 A full-screen, **buttons-only** kiosk for a Raspberry Pi 5 with a 3.5" SPI
 screen. It sells footmops at **₱5 each**: the customer picks a quantity with
-the Green/Blue/White buttons (or just drops coins in), pays with ₱5 coins, and
+the Green/Blue/White buttons, pays with ₱5 coins on the payment screen, and
 the machine dispenses one footmop at a time. A TCRT5000 sensor confirms each
 drop. Touch and mouse input are ignored completely.
 
@@ -12,7 +12,7 @@ drop. Touch and mouse input are ignored completely.
 
 ```
 LANDING ──WHITE──► QUANTITY ──WHITE──► PAYMENT ──credit ≥ total──► DISPENSING ──► SUCCESS ──► LANDING
-   │ coins inserted ──► QUANTITY (qty already = coins paid)                │ jam / sensor / timeout
+   │                                                                        │ jam / sensor / timeout
    ▼                                                                        ▼
 SOLD OUT (stock 0)                                               FAULT (locked until admin clears)
 ```
@@ -27,10 +27,13 @@ the physical buttons, labelled with what each button does right now.
 | Payment  | Back                                 | –              | –            |
 | Success  | –                                    | Done           | –            |
 
-- Quantity can't go below what's already paid for, so nobody overpays by
-  pressing GREEN after inserting coins.
-- Coins inserted on the Landing or Quantity screen raise the quantity to
-  match (3 coins = 3 footmops), then WHITE dispenses straight away.
+- The customer can choose up to the number of footmops in stock. There is no
+  other per-purchase limit. To add one, set `max_per_transaction` in the
+  config; 0 means no limit.
+- **Coins are accepted only on the Payment screen.** On any other screen they
+  are not credited.
+- If the customer goes Back from Payment after inserting coins, the quantity
+  can't go below what's already paid for, so nobody overpays.
 - The Payment screen shows one coin circle per ₱5 needed, filling in as coins
   arrive.
 
@@ -41,16 +44,14 @@ the physical buttons, labelled with what each button does right now.
   dismisses it. If it runs out, the order is cancelled. Any credit is
   **forfeited**: it is not carried over to the next customer. It is logged as
   `ABANDONED` so the owner can reconcile.
-- **Overpayment:** with ₱5-only coins and a price that is a multiple of ₱5, a
-  customer cannot overpay on the Payment screen. Overpayment can only happen
-  if credit was inserted before the quantity was chosen. The order then goes
-  through, and the screen says *"Overpayment accepted – no change given"*.
-  The amount is recorded.
-- **Coins inserted while dispensing:** they are credited to a follow-up order
-  for the same customer. The normal timeout rule applies to that order.
-- **Coins inserted while sold out or faulted:** they are logged as
-  *unclaimed*. Wiring a coin-inhibit relay prevents this entirely (see
-  `docs/WIRING.md`).
+- **Overpayment:** not possible. Coins only count on the Payment screen, and
+  dispensing starts the moment the exact amount is reached.
+- **Coins inserted on any other screen** (welcome, quantity, dispensing,
+  sold out, fault) are **not credited**. The screen says *"Coins are accepted
+  only on the payment screen"*. To make the slot physically refuse them, so
+  they drop back out instead of being kept, wire the **coin-inhibit relay**
+  (see `docs/WIRING.md`). Without it the machine keeps those coins and logs
+  them as *unclaimed* in the Sales report.
 
 ## Reliability features
 

@@ -95,10 +95,13 @@ class Walkthrough:
         a(8600, self.expect(State.SUCCESS)); a(0, self.shot("success"))
         self.tap(W); a(300, self.expect(State.LANDING))
 
-        # coins first from the landing screen: quantity follows the money
+        # coins are refused outside the payment screen
+        self.coins(1)
+        a(400, self.expect(State.LANDING)); a(0, lambda: None if self.k.credit == 0 else self.failures.append("coin credited on landing"))
+        # buy 2 more
+        self.tap(W); self.tap(B); self.tap(W)
         self.coins(2)
-        a(400, self.expect(State.QUANTITY)); a(0, self.shot("quantity_coins_first"))
-        self.tap(W); a(300, self.expect(State.DISPENSING))
+        a(400, self.expect(State.DISPENSING))
         a(5600, self.expect(State.SUCCESS))
         self.tap(W); a(300, self.expect(State.LANDING))
 

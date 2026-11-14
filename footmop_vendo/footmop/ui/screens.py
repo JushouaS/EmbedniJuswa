@@ -45,11 +45,8 @@ class Header(QWidget):
         sc = ctx.sc
         lay = QHBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        self.title = T.label(sc, ctx.cfg.machine.name, 14, T.ACCENT, True,
-                             align=Qt.AlignLeft | Qt.AlignVCenter)
         self.status = T.label(sc, "", 12, T.MUTED, align=Qt.AlignRight | Qt.AlignVCenter)
-        lay.addWidget(self.title, 1)
-        lay.addWidget(self.status)
+        lay.addWidget(self.status, 1)
         self.setFixedHeight(sc(24))
 
 
@@ -93,8 +90,7 @@ class LegendBar(QWidget):
                                  f" border-bottom: {sc(4)}px solid rgba(0,0,0,90);")
             else:
                 lb.setText("")
-                lb.setStyleSheet(f"background: transparent; border: {sc(2)}px dashed"
-                                 f" rgba(255,255,255,25); border-radius: {r}px;")
+                lb.setStyleSheet("background: transparent; border: none;")
 
 
 class CoinRow(QWidget):
@@ -155,6 +151,8 @@ class CoinRow(QWidget):
 
 
 class Screen(QWidget):
+    show_header = False        # customer screens stay clean; admin shows a status line
+
     def __init__(self, ctx: Ctx):
         super().__init__()
         self.ctx = ctx
@@ -164,6 +162,7 @@ class Screen(QWidget):
         root.setSpacing(sc(4))
         self.header = Header(ctx)
         root.addWidget(self.header)
+        self.header.setVisible(self.show_header)
         self.body = QVBoxLayout()
         self.body.setSpacing(sc(2))
         root.addLayout(self.body, 1)
@@ -196,7 +195,7 @@ class LandingScreen(Screen):
         self.avail = T.label(sc, "", 14, T.MUTED)
         self.body.addWidget(self.avail)
         self.body.addStretch(1)
-        self.body.addWidget(T.label(sc, "Press WHITE to buy  •  or just insert coins", 15, T.TEXT, True))
+        self.body.addWidget(T.label(sc, "Press WHITE to buy", 17, T.TEXT, True))
         self.body.addStretch(1)
         self.legend.set(white="BUY")
 
@@ -204,7 +203,7 @@ class LandingScreen(Screen):
         k = self.ctx.kiosk
         _set(self.header.status, f"Stock {k.stock}")
         _set(self.price, f"{self.ctx.money(k.price)} each")
-        _set(self.avail, f"{k.stock} available  •  up to {k.max_qty} per purchase")
+        _set(self.avail, f"{k.stock} available")
 
 
 class SoldOutScreen(Screen):
@@ -255,10 +254,8 @@ class QuantityScreen(Screen):
         _set(self.total, f"Total {m(k.amount_due)}  ({coins} coin{'s' if coins != 1 else ''})")
         if k.credit:
             sub = f"Inserted {m(k.credit)}  •  paid for {k.credit // k.price}"
-        elif k.max_qty < self.ctx.cfg.machine.max_per_transaction:
-            sub = f"Only {k.max_qty} left in stock"
         else:
-            sub = f"Max {k.max_qty} per purchase"
+            sub = f"{k.max_qty} available"
         _set(self.sub, sub)
         if k.qty <= 1 and k.credit == 0:
             green = "Cancel"
@@ -378,6 +375,8 @@ EXIT_HINT = "Hold WHITE 2 s to exit admin"
 
 
 class AdminPinScreen(Screen):
+    show_header = True
+
     """PIN entry with three buttons: GREEN/BLUE change the digit, WHITE moves
     on (and submits after the last digit)."""
 
@@ -496,6 +495,8 @@ class ListBox(QWidget):
 
 
 class AdminScreen(Screen):
+    show_header = True
+
     """Admin pages, all operable with the three buttons:
       list pages   GREEN up / BLUE down / WHITE select
       value pages  GREEN - / BLUE + (hold to repeat; stock speeds up) / WHITE save

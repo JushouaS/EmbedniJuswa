@@ -27,7 +27,7 @@ class MachineCfg:
     name: str = "Footmop ni Kuya J"
     currency: str = "₱"            # ₱
     price_per_item: int = 5              # pesos; must be a multiple of coin.value
-    max_per_transaction: int = 5
+    max_per_transaction: int = 0         # 0 = no cap: the limit is the stock available
 
 
 @dataclass
@@ -131,8 +131,8 @@ class Config:
             errs.append(
                 f"machine.price_per_item ({m.price_per_item}) must be a multiple of "
                 f"coin.value ({c.value}) or customers can never pay exactly")
-        if m.max_per_transaction < 1:
-            errs.append("machine.max_per_transaction must be >= 1")
+        if m.max_per_transaction < 0:
+            errs.append("machine.max_per_transaction must be >= 0 (0 = limited by stock only)")
         if c.pulses_per_coin < 1:
             errs.append("coin.pulses_per_coin must be >= 1")
         if not (0 < c.pulse_min_ms < c.pulse_max_ms):

@@ -52,7 +52,7 @@ A 480×320 window opens. That is the same size as the 3.5" screen.
 | **←** (or A) | GREEN button |
 | **→** (or D) | BLUE button |
 | **Enter** (or Space / S) | WHITE button |
-| **C** (or 5) | Insert a ₱5 coin |
+| **C** (or 5) | Insert a ₱5 coin (only counted on the payment screen) |
 | **N** | Send electrical noise on the coin wire (should be ignored) |
 | **J** | Turn motor jam on/off. The next purchase fails and locks the machine |
 | **B** | Turn "chute blocked" on/off |
@@ -68,11 +68,11 @@ A 480×320 window opens. That is the same size as the 3.5" screen.
    3. Press C three times.
 
    The machine dispenses three footmops and shows "Salamat po!".
-2. **Coins first:** press C twice on the welcome screen. The quantity jumps to
-   2. Press Enter to dispense.
+2. **Coins outside payment:** press C on the welcome screen. Nothing is
+   credited. Coins only count on the payment screen.
 3. **Cancel:** press Enter, then ← while the quantity is 1.
 4. **Timeout:**
-   1. Start an order and insert 1 coin.
+   1. Press Enter, → (choose 2), Enter, then C once.
    2. Wait 60 s. "Still there?" appears.
    3. Wait 15 s more. The order is cancelled and the coin is forfeited.
 5. **Jam:**
