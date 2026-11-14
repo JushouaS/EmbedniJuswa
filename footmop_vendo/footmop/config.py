@@ -91,13 +91,16 @@ class DispenseCfg:
 
 @dataclass
 class AdminCfg:
-    pin: str = "1234"
+    pin: str = "0412"
 
 
 @dataclass
 class StorageCfg:
     db_path: str = "/var/lib/footmop/footmop.db"
     log_dir: str = "/var/log/footmop"
+    # Sales CSV export: first mounted USB drive matching these, else export_dir
+    usb_globs: list = field(default_factory=lambda: ["/media/usb-*", "/media/*/*", "/mnt/usb*"])
+    export_dir: str = "/var/lib/footmop/exports"
 
 
 @dataclass
@@ -146,11 +149,6 @@ class Config:
             errs.append("timing values must be positive")
         if not str(self.admin.pin).isdigit() or len(str(self.admin.pin)) < 4:
             errs.append("admin.pin must be at least 4 digits")
-        if self.admin.pin == "1234":
-            # Not fatal, but loud.
-            import logging
-            logging.getLogger("footmop.config").warning(
-                "admin.pin is still the default 1234 - change it in config.toml")
         used = {}
         for name in ("button_green", "button_blue", "button_white", "coin",
                      "drop_sensor", "motor_relay", "coin_enable"):

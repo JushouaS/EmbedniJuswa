@@ -150,6 +150,11 @@ class Kiosk:
         return max(0, int(round(self._success_until - self.clock())))
 
     @property
+    def admin_pin_seconds_left(self) -> int:
+        """Seconds until an untouched PIN screen returns to the start screen."""
+        return max(0, int(round(self.cfg.timing.admin_pin_idle_s - (self.clock() - self._last_activity))))
+
+    @property
     def pin_locked_seconds(self) -> int:
         return max(0, int(round(self._pin_locked_until - self.clock())))
 
@@ -302,6 +307,8 @@ class Kiosk:
         if self.credit >= self.amount_due:
             self._begin_dispense()
         else:
+            if self.session_id is not None:
+                self.store.set_order(self.session_id, self.qty, self.price, self.amount_due)
             self._enter(State.PAYMENT)
 
     # ================================================================= coins
@@ -465,6 +472,23 @@ class Kiosk:
             log.warning("admin set price -> %d", p)
         self._changed()
 
+    def admin_export_csv(self) -> None:
+        """Sales report -> CSV on a USB flash drive (or the local export folder)."""
+        if self.state != State.ADMIN:
+            return
+        from .export import export_sales
+        sc = self.cfg.storage
+        try:
+            path, n, on_usb = export_sales(self.store, sc.usb_globs, sc.export_dir)
+        except OSError as exc:
+            log.exception("CSV export failed")
+            self.admin_message = f"Export failed: {exc.strerror or exc}"
+        else:
+            name = path.replace("\\", "/").rsplit("/", 1)[-1]
+            self.admin_message = (f"Saved {n} orders to USB: {name} - safe to remove" if on_usb
+                                  else f"No USB drive - saved {n} orders to {path}")
+        self._changed()
+
     def admin_clear_faults(self) -> None:
         if self.state == State.ADMIN:
             n = self.store.clear_faults()
@@ -532,8 +556,15 @@ class Kiosk:
             limit = (self.cfg.timing.admin_pin_idle_s if s == State.ADMIN_PIN
                      else self.cfg.timing.admin_idle_timeout_s)
             if now - self._last_activity >= limit:
+                log.info("admin %s idle %ds - back to start screen",
+                         "PIN screen" if s == State.ADMIN_PIN else "menu", int(limit))
                 self.exit_admin()
                 return
+            if s == State.ADMIN_PIN:
+                sec = self.admin_pin_seconds_left
+                if sec != self._last_warn_sec:
+                    self._last_warn_sec = sec
+                    changed = True
         if changed:
             self._changed()
 

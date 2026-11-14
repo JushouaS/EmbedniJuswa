@@ -55,6 +55,7 @@ def main(argv=None) -> int:
         cfg.storage.db_path = args.db
     if args.mock and not args.config:
         cfg.storage.log_dir = os.path.join(os.getcwd(), "data", "logs")
+        cfg.storage.export_dir = os.path.join(os.getcwd(), "data", "exports")
     setup_logging(cfg.storage.log_dir, args.verbose)
     logging.getLogger("footmop").info("%s v%s starting (mock=%s)", APP_NAME, __version__, args.mock)
 

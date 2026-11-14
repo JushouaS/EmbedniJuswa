@@ -102,8 +102,17 @@ Admin mode can be opened from the Welcome, Sold out or Fault screen:
   - WHITE = next digit; on the last digit, WHITE enters or saves.
   - Each digit cycles 0–9 and then **✕**. WHITE on ✕ cancels.
 - **Menus:** GREEN = up, BLUE = down, WHITE = select.
-- **Exit:** choose **Exit admin** in the menu, or ✕ on the PIN screen. Admin
-  also closes itself after 2 minutes idle (30 s on the PIN screen).
+- **PIN:** `0412` by default (set `[admin] pin` in the config).
+- **Exit:** choose **Exit admin** in the menu, or ✕ on the PIN screen.
+- **Opened by accident?** If nobody presses a button on the PIN screen for
+  **30 s**, it goes back to the start screen by itself; the screen counts
+  down. The admin menu closes itself after 2 minutes idle.
+- **Sales report → Download CSV to USB drive:** plug a FAT32/exFAT flash
+  drive into the Pi, then select it. The CSV (one row per order: time,
+  status, quantity, price, paid, dispensed, owed, note) is saved to the
+  drive, and the screen says when it's safe to remove. With no drive in, it's
+  saved to `/var/lib/footmop/exports` instead (`data\exports` in the PC
+  simulator). The installer sets up automatic mounting of USB drives.
 - **Lockout:** 5 wrong PINs lock the keypad for 60 s.
 
 Admin pages:
@@ -136,7 +145,7 @@ python3 -m footmop --mock --windowed --size 800x480 --seed-stock 10
 | N                         | coin-line noise (should be rejected)       |
 | J                         | toggle motor jam                           |
 | B                         | toggle chute blocked                       |
-| ← → ← → ← (quick taps)    | admin (PIN 1234); leave via "Exit admin"   |
+| ← → ← → ← (quick taps)    | admin (PIN 0412); leave via "Exit admin"   |
 | Esc                       | quit                                       |
 
 To run the unit tests: `python3 -m pytest -q`
@@ -193,7 +202,7 @@ footmop/
 deploy/                installer, systemd unit, launcher, relay-off hook
 docs/                  wiring + display setup
 tools/coin_probe.py    measure real coin pulse widths
-tests/                 41 unit tests (state machine, decoder, debounce, store, dispenser)
+tests/                 44 unit tests (state machine, decoder, debounce, store, dispenser)
 ```
 
 ## Not yet verified on real hardware

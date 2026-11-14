@@ -462,7 +462,8 @@ class AdminPinScreen(Screen):
         self.body.addWidget(self.entry, 1)
         self.msg = T.label(sc, "", 14, T.ACCENT, True)
         self.body.addWidget(self.msg)
-        self.body.addWidget(T.label(sc, f"To go back: choose {CANCEL} and press WHITE", 12, T.MUTED))
+        self.back_hint = T.label(sc, "", 12, T.MUTED)
+        self.body.addWidget(self.back_hint)
 
     def on_show(self) -> None:
         self.entry.reset(secret=True)
@@ -490,6 +491,8 @@ class AdminPinScreen(Screen):
         k = self.ctx.kiosk
         if k.pin_locked_seconds:
             _set(self.msg, f"Locked - wait {k.pin_locked_seconds}s")
+        _set(self.back_hint, f"Back to start in {k.admin_pin_seconds_left}s if no button is pressed"
+                             f"  \u2022  or choose {CANCEL} + WHITE")
         self.entry.paint()
         self.entry.legend(self.legend, "Enter")
         _set(self.header.status, "ADMIN")
@@ -566,8 +569,8 @@ class AdminScreen(Screen):
         self.body.addWidget(self.price_entry, 2)
         self.list = ListBox(ctx)
         self.body.addWidget(self.list)
-        self.msg = T.label(sc, "", 12, T.ACCENT, True)
-        self.msg.setFixedHeight(sc(16))
+        self.msg = T.label(sc, "", 12, T.ACCENT, True, wrap=True)
+        self.msg.setMinimumHeight(sc(16))
         self.body.addWidget(self.msg)
         self.page = "menu"
         self.live = QTimer(self)
@@ -590,6 +593,8 @@ class AdminScreen(Screen):
             return ([("Clear all faults", k.admin_clear_faults)] if k.store.active_faults() else []) + [back]
         if self.page == "hw":
             return [("Test dispense 1 item", k.admin_test_dispense), back]
+        if self.page == "sales":
+            return [("Download CSV to USB drive", k.admin_export_csv), back]
         return [back]
 
     def go(self, page: str, keep_message: bool = False) -> None:

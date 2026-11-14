@@ -173,6 +173,12 @@ class Store:
                 self.db.execute("UPDATE sessions SET credit = credit + ? WHERE id=?",
                                 (value, session_id))
 
+    def set_order(self, session_id: int, qty: int, unit_price: int, amount_due: int) -> None:
+        """Record what the customer chose, so abandoned orders show it too."""
+        with self._tx():
+            self.db.execute("UPDATE sessions SET qty=?, unit_price=?, amount_due=? WHERE id=?",
+                            (qty, unit_price, amount_due, session_id))
+
     def begin_dispense(self, session_id: int, qty: int, unit_price: int, amount_due: int) -> None:
         with self._tx():
             self.db.execute(

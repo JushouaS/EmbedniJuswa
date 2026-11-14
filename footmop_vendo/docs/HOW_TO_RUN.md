@@ -56,7 +56,7 @@ A 480×320 window opens. That is the same size as the 3.5" screen.
 | **N** | Send electrical noise on the coin wire (should be ignored) |
 | **J** | Turn motor jam on/off. The next purchase fails and locks the machine |
 | **B** | Turn "chute blocked" on/off |
-| Tap **← → ← → ←** quickly | Open admin (PIN **1234**) |
+| Tap **← → ← → ←** quickly | Open admin (PIN **0412**) |
 | Menu → **Exit admin** | Leave admin |
 | **Esc** | Quit |
 
@@ -91,7 +91,7 @@ py -m pip install pytest
 py -m pytest -q
 ```
 
-You should see `41 passed`.
+You should see `44 passed`.
 
 ---
 
@@ -205,7 +205,7 @@ This does the following:
 The kiosk starts by itself after boot. On first start it shows **SOLD OUT**,
 because the stock is 0.
 
-1. Quickly press **GREEN, BLUE, GREEN, BLUE, GREEN**, then enter your PIN.
+1. Quickly press **GREEN, BLUE, GREEN, BLUE, GREEN**, then enter your PIN (default **0412**).
    - GREEN/BLUE change the digit.
    - WHITE goes to the next digit and submits after the last one.
    - To back out, press GREEN until the digit shows **✕**, then press WHITE.
@@ -243,6 +243,7 @@ Insert some coins and note the `width=` values it prints. Then:
 | Change price | Admin → **Price** → set digits (must be a multiple of ₱5) → WHITE on the last digit saves |
 | "OUT OF SERVICE" | Fix the cause (jammed footmop, blocked chute) → Admin → **Faults** → **Clear all faults**. The screen shows how many items are owed to the customer; give those by hand |
 | See sales | Admin → **Sales report** |
+| Get sales as a spreadsheet | Plug in a USB flash drive → Admin → **Sales report** → **Download CSV to USB drive** → unplug when it says "safe to remove". Open the `.csv` in Excel |
 | Leave admin | Menu → **Exit admin** (or it closes by itself after 2 min) |
 
 ## Useful commands on the Pi (over SSH)
@@ -276,4 +277,5 @@ Your settings, stock and sales are kept. They live in `/etc/footmop` and
 | Coins not counted | Run `coin_probe.py` (see step 7). Check the opto wiring and set the acceptor's NO/NC switch to **NO** |
 | Every purchase says "Dispense Failure" | The sensor never sees the item. Check its position (2–15 mm), turn its potentiometer, and power it from **3.3 V** |
 | Motor runs at boot | You have an active-LOW relay. Use an active-HIGH one, or set `relay_active_high = false` and `gpio=20=op,dh` |
+| Admin PIN screen opened by accident | Do nothing - it goes back to the start screen after 30 s |
 | Forgot admin PIN | Over SSH: `sudo nano /etc/footmop/config.toml`, set a new `pin`, then `sudo systemctl restart footmop` |

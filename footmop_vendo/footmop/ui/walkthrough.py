@@ -152,7 +152,10 @@ class Walkthrough:
         a(0, lambda: None if self.k.stock == 24 else self.failures.append(f"stock {self.k.stock} != 24"))
         self.tap(B, 4); self.tap(W)                      # -> Sales report
         a(300, self.shot("admin_sales"))
-        self.tap(W)                                      # Back
+        self.tap(W)                                      # Download CSV
+        a(400, self.shot("admin_sales_csv"))
+        a(0, lambda: None if "orders" in self.k.admin_message else self.failures.append("csv export: " + self.k.admin_message))
+        self.tap(B); self.tap(W)                         # Back
         self.tap(B, 3); self.tap(W)                      # -> Test hardware
         a(100, self.hal.insert_coin)
         a(700, self.shot("admin_hw_test"))

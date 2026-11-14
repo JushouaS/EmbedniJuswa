@@ -346,7 +346,7 @@ def test_admin_sequence_pin_and_clear_fault(k):
     tap_sequence(k)                      # short presses only
     assert k.state == State.ADMIN_PIN
     assert not k.submit_pin("0000")
-    assert k.submit_pin("1234")
+    assert k.submit_pin("0412")
     k.admin_clear_faults()
     k.admin_set_stock(20)
     k.admin_set_price(23)            # not a multiple of 5 -> refused
@@ -385,9 +385,9 @@ def test_pin_lockout(k):
     for _ in range(5):
         k.submit_pin("9999")
     assert k.pin_locked_seconds > 0
-    assert not k.submit_pin("1234")
+    assert not k.submit_pin("0412")
     k.clock.t += 61
-    assert k.submit_pin("1234")
+    assert k.submit_pin("0412")
 
 
 def test_coin_during_dispensing_is_not_carried_to_next_order(k):
@@ -548,10 +548,62 @@ def test_admin_presses_go_to_admin_ui(k):
     navs = []
     k.admin_nav = lambda b, p: navs.append((b, p))
     tap_sequence(k)
-    k.submit_pin("1234")
+    k.submit_pin("0412")
     k.press(Btn.WHITE)
     k.clock.t += 3
     k.tick()
     k.release(Btn.WHITE)
     assert k.state == State.ADMIN          # holding WHITE does not exit
     assert navs == [(Btn.WHITE, True)]
+
+# ------------------------------------------------------------- CSV export
+def test_sales_csv_export(tmp_path):
+    import csv as _csv
+    from footmop.core.export import export_sales, write_sales_csv
+    s = Store(str(tmp_path / "e.db"), 5)
+    s.set_stock(10)
+    sid = s.open_session(5)
+    s.add_coin(sid, 5, 1, "payment")
+    s.add_coin(sid, 5, 1, "payment")
+    s.begin_dispense(sid, 2, 5, 10)
+    s.record_item_dispensed(sid)
+    s.record_item_dispensed(sid)
+    s.end_session(sid, st.COMPLETED, "=HYPERLINK(evil)")
+    cancelled = s.open_session(5)
+    s.end_session(cancelled, st.CANCELLED, "timeout")
+    path, n = write_sales_csv(s, str(tmp_path / "out"))
+    assert n == 1
+    with open(path, encoding="utf-8-sig") as fh:
+        rows = list(_csv.DictReader(fh))
+    assert rows[0]["quantity"] == "2" and rows[0]["amount_paid"] == "10"
+    assert rows[0]["status"] == "COMPLETED" and rows[0]["note"].startswith("'=")
+    # no USB mounted -> falls back to the local folder
+    path2, n2, on_usb = export_sales(s, [str(tmp_path / "no-usb-*")], str(tmp_path / "fallback"))
+    assert not on_usb and path2.startswith(str(tmp_path / "fallback"))
+
+
+def test_admin_export_message(k, tmp_path):
+    k.cfg.storage.usb_globs = [str(tmp_path / "nothing-*")]
+    k.cfg.storage.export_dir = str(tmp_path / "exp")
+    k.open_admin()
+    k.submit_pin("0412")
+    k.admin_export_csv()
+    assert "No USB drive" in k.admin_message
+    import os
+    assert len(os.listdir(tmp_path / "exp")) == 1
+
+
+def test_pin_screen_returns_to_landing_after_30s_idle(k):
+    assert k.cfg.admin.pin == "0412"
+    k.open_admin()                       # e.g. sequence pressed by accident
+    assert k.state == State.ADMIN_PIN
+    k.clock.t += 20
+    k.tick()
+    assert k.state == State.ADMIN_PIN and k.admin_pin_seconds_left == 10
+    k.press(Btn.BLUE)                    # any press restarts the 30 s
+    k.clock.t += 29
+    k.tick()
+    assert k.state == State.ADMIN_PIN
+    k.clock.t += 1.1
+    k.tick()
+    assert k.state == State.LANDING

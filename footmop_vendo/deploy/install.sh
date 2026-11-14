@@ -62,6 +62,16 @@ if [[ "$MODE" == "linuxfb" ]]; then
     systemctl disable getty@tty1.service 2>/dev/null || true
 fi
 
+echo "==> USB flash drive auto-mount (for Admin > Sales report > Download CSV)"
+# Raspberry Pi OS Lite does not auto-mount USB sticks. This rule mounts any
+# FAT32/exFAT stick at /media/usb-<dev>, writable by the kiosk user.
+RUN_UID="$(id -u "$RUN_USER")"; RUN_GID="$(id -g "$RUN_USER")"
+cat > /etc/udev/rules.d/99-footmop-usb.rules <<RULES
+ACTION=="add", SUBSYSTEMS=="usb", SUBSYSTEM=="block", ENV{ID_FS_TYPE}=="vfat|exfat", RUN{program}+="/usr/bin/systemd-mount --no-block --collect --options=uid=$RUN_UID,gid=$RUN_GID,umask=0022 \$devnode /media/usb-%k"
+ACTION=="remove", SUBSYSTEMS=="usb", SUBSYSTEM=="block", RUN{program}+="/usr/bin/systemd-umount /media/usb-%k"
+RULES
+udevadm control --reload-rules || true
+
 CMDLINE=/boot/firmware/cmdline.txt
 if [[ -f $CMDLINE ]] && ! grep -q "consoleblank=0" $CMDLINE; then
     sed -i '1 s/$/ consoleblank=0/' $CMDLINE
@@ -83,7 +93,7 @@ cat <<EOF
  4. Start / check:
        sudo systemctl start footmop
        journalctl -u footmop -f
- 5. First run: stock is 0 (SOLD OUT). Hold GREEN+BLUE for 3 s,
-    enter the PIN, and set the stock.
+ 5. First run: stock is 0 (SOLD OUT). Quickly press GREEN, BLUE,
+    GREEN, BLUE, GREEN, enter the PIN, and set the stock.
 =====================================================================
 EOF

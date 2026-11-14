@@ -60,7 +60,7 @@ sensor_active_low = true     # most TCRT5000 modules: DO goes LOW when an object
 sensor_glitch_us = 1000
 
 [admin]
-pin = "1234"                 # CHANGE THIS
+pin = "0412"                 # admin PIN (keep it in quotes so the leading 0 stays)
 
 [storage]
 db_path = "/var/lib/footmop/footmop.db"
