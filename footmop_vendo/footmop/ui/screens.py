@@ -188,7 +188,7 @@ class Hero:
     look alike - a vertically centred stack of:
 
         kicker   small, muted         ("Welcome to")
-        main     big, bold, white     ("Footmop Vendo")
+        main     big, bold, white     ("Footmop ni Kuya J")
         accent   bold, yellow         ("P5 each")
         sub      small, muted         ("6 available")
         cta      bold, white          ("Press WHITE to buy")
@@ -235,7 +235,7 @@ class LandingScreen(Screen):
 
     def refresh(self) -> None:
         k = self.ctx.kiosk
-        self.hero.set("Welcome to", "Footmop Vendo", f"{self.ctx.money(k.price)} each",
+        self.hero.set("Welcome to", self.ctx.cfg.machine.name, f"{self.ctx.money(k.price)} each",
                       f"{k.stock} available", "Press WHITE to buy")
 
 
