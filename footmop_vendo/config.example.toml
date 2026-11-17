@@ -23,7 +23,7 @@ admin_pin_max_attempts = 5
 
 [pins]                       # BCM GPIO numbers (NOT physical pin numbers)
 chip = "auto"                # Pi 5 header chip is auto-detected (pinctrl-rp1)
-button_green = 5             # physical pin 29
+button_green = 17            # physical pin 11  (screen touch-IRQ line, OK because touch is unused)
 button_blue = 27             # physical pin 13
 button_white = 22            # physical pin 15
 coin = 23                    # physical pin 16  (through an optocoupler!)
@@ -31,7 +31,7 @@ drop_sensor = 26             # physical pin 37  (IR sensor that stops the servo;
 servo = 12                   # physical pin 32  (MG995 signal wire; hardware-PWM capable)
 motor_relay = -1             # only used if dispense.driver = "relay"
 coin_enable = -1             # physical pin 40 (GPIO21) if you add a coin-inhibit relay; -1 = none
-# Do NOT use GPIO 7, 8, 9, 10, 11, 17, 24 or 25 - the 3.5" screen uses them.
+# Do NOT use GPIO 7, 8, 9, 10, 11, 24 or 25 - the 3.5" screen uses them.
 
 [buttons]
 active_low = true            # button wired between GPIO and GND (internal pull-up)

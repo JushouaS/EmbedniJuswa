@@ -83,7 +83,7 @@ def test_lgpio_hal_wiring(monkeypatch):
     assert s["open"][0] == 0
     # servo pin claimed as output, held LOW (no pulses = stopped)
     assert s["claims"][12] == "out" and s["outputs"][12] == 0
-    for pin in (5, 27, 22):                       # GREEN, BLUE, WHITE
+    for pin in (17, 27, 22):                      # GREEN, BLUE, WHITE
         assert s["claims"][pin][1] == fake.SET_PULL_UP
     assert s["claims"][23][0] == "alert" and s["debounce"][23] == 3000   # coin
     assert s["claims"][26][0] == "alert"                                 # IR sensor
@@ -92,9 +92,9 @@ def test_lgpio_hal_wiring(monkeypatch):
     hal.start(lambda b, p: buttons.append((b, p)), lambda lvl, t: edges.append(lvl))
 
     # press GREEN for 100 ms -> exactly one press + one release
-    s["levels"][5] = 0
+    s["levels"][17] = 0
     time.sleep(0.12)
-    s["levels"][5] = 1
+    s["levels"][17] = 1
     time.sleep(0.12)
     assert buttons == [(Btn.GREEN, True), (Btn.GREEN, False)]
 

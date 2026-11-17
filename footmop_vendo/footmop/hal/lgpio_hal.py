@@ -73,8 +73,15 @@ class LgpioHAL(HAL):
         pull_btn = lgpio.SET_PULL_UP if cfg.buttons.active_low else lgpio.SET_PULL_DOWN
         self._buttons: Dict[Btn, int] = {Btn.GREEN: p.button_green, Btn.BLUE: p.button_blue,
                                          Btn.WHITE: p.button_white}
-        for pin in self._buttons.values():
-            lgpio.gpio_claim_input(self.h, pin, pull_btn)
+        for btn, pin in self._buttons.items():
+            try:
+                lgpio.gpio_claim_input(self.h, pin, pull_btn)
+            except Exception as exc:
+                hint = (" GPIO17 is the 3.5\" screen's touch-interrupt line and its touch driver "
+                        "is holding it: disable the screen's touch (see docs/WIRING.md, "
+                        "'Green button on GPIO 17') or move this button to a free pin."
+                        if pin == 17 else " Another driver or program is using this pin.")
+                raise RuntimeError(f"{btn.name} button: cannot use GPIO{pin} ({exc}).{hint}") from exc
 
         # Coin line: kernel-timestamped edge alerts with a glitch filter.
         pull_coin = lgpio.SET_PULL_UP if cfg.coin.active_low else lgpio.SET_PULL_DOWN

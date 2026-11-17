@@ -626,3 +626,12 @@ def test_servo_stops_as_soon_as_ir_sees_footmop():
 def test_servo_jam_times_out():
     r = _run_dispenser(SimHAL(drop=False), 1)
     assert r["fault"] == "dispense_failure"
+
+
+def test_green_on_gpio17_is_allowed_but_screen_pins_are_not():
+    c = Config()
+    assert (c.pins.button_green, c.pins.button_blue, c.pins.button_white) == (17, 27, 22)
+    c.validate()                         # GPIO17 = unused touch IRQ: allowed
+    c.pins.drop_sensor = 25              # screen reset line: refused
+    with pytest.raises(ConfigError):
+        c.validate()

@@ -84,7 +84,7 @@ footmop drops.
 
 | Function | GPIO | Physical pin |
 |---|---|---|
-| GREEN button | GPIO 5 | 29 |
+| GREEN button | GPIO 17 | 11 * |
 | BLUE button | GPIO 27 | 13 * |
 | WHITE button | GPIO 22 | 15 * |
 | Coin pulse signal (through the PC817) | GPIO 23 | 16 * |
@@ -94,8 +94,10 @@ footmop drops.
 | GND | – | 30, 34, 39 |
 
 \* Under the 3.5" screen, so you need a GPIO splitter/extension to reach
-them. **Don't use GPIO 7–11, 17, 24 or 25**: the screen uses them (GPIO 25
-is its reset line).
+them. **Don't use GPIO 7–11, 24 or 25**: the screen uses them (GPIO 25 is
+its reset line). GPIO 17 is the screen's unused touch-interrupt line. If
+the kiosk says GPIO 17 is busy, see "Green button on GPIO 17" in
+[`WIRING.md`](footmop_vendo/docs/WIRING.md).
 
 Full diagrams and tips: [`footmop_vendo/docs/WIRING.md`](footmop_vendo/docs/WIRING.md).
 

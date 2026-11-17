@@ -6,13 +6,14 @@
 ## Pin map
 
 The 3.5" screen plugs onto **physical pins 1–26**. It uses SPI0 (GPIO 7, 8, 9,
-10, 11) plus **GPIO 17** (touch interrupt), **24** (data/command) and **25**
-(screen reset). **Never wire anything else to those.** The app refuses to start
-if you do.
+10, 11) plus **24** (data/command) and **25** (screen reset). **Never wire
+anything else to those.** The app refuses to start if you do. GPIO 17 is the
+screen's touch-interrupt line. Touch isn't used, so the Green button shares
+it (see "Green button on GPIO 17" below).
 
 | Function | BCM GPIO | Physical pin | Other side |
 |---|---|---|---|
-| Green button (left) | GPIO 5 | 29 | GND (pin 30) |
+| Green button (left) | GPIO 17 | 11 * | GND |
 | Blue button (right) | GPIO 27 | 13 * | GND |
 | White button (OK) | GPIO 22 | 15 * | GND |
 | Coin pulse signal | GPIO 23 | 16 * | PC817 optocoupler output (see below) |
@@ -21,10 +22,29 @@ if you do.
 | Coin inhibit relay *(optional)* | GPIO 21 | 40 | relay that powers the coin slot |
 | GND | – | 30, 34, 39 | |
 
-\* **Pins 13, 15 and 16 are underneath the screen.** The screen doesn't use
-them electrically, but you can't reach them while it's plugged in. Use a
-**40-pin GPIO splitter / extension board** (or the screen's pass-through
-header, or wires soldered under the Pi) to reach GPIO 27, 22 and 23.
+\* **Pins 11, 13, 15 and 16 are underneath the screen.** You can't reach them
+while it's plugged in. Use a **40-pin GPIO splitter / extension board** (or
+the screen's pass-through header, or wires soldered under the Pi) to reach
+GPIO 17, 27, 22 and 23.
+
+### Green button on GPIO 17
+
+GPIO 17 (pin 11) is wired to the screen's touch chip, which is unused. Wiring
+the Green button there is electrically safe: the touch chip's interrupt
+output is open-drain, so a button to GND only pulls it low.
+
+The screen's **touch driver may reserve the pin**. If it does, the kiosk shows
+*"Hardware initialisation failed: GREEN button: cannot use GPIO17 … busy"*.
+You have two fixes:
+
+1. **Turn off the screen's touch driver** (touch isn't used anyway). Check
+   who holds the pin: `sudo apt install -y gpiod && gpioinfo | grep -w "17"`.
+   If it shows a consumer like `ads7846`/`pendown`, use your screen vendor's
+   display-only overlay (no touch), or ask me to help with your exact
+   overlay.
+2. **Or move Green to a free pin,** e.g. GPIO 5 (pin 29): set
+   `button_green = 5` in `/etc/footmop/config.toml`, then
+   `sudo systemctl restart footmop`.
 
 **Power for the sensor and modules.** The 3.3 V and 5 V pins (1, 2, 4, 17) are
 under the screen. To reach them, use one of:

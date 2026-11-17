@@ -46,7 +46,7 @@ class TimingCfg:
 @dataclass
 class PinsCfg:
     chip: Any = "auto"                   # "auto" or gpiochip number
-    button_green: int = 5                # physical pin 29
+    button_green: int = 17               # physical pin 11  (screen touch-IRQ line; touch is unused)
     button_blue: int = 27                # physical pin 13
     button_white: int = 22               # physical pin 15
     coin: int = 23                       # physical pin 16
@@ -174,9 +174,16 @@ class Config:
             if pin in used:
                 errs.append(f"pins.{name} and pins.{used[pin]} both use GPIO{pin}")
             used[pin] = name
-            # GPIO used by typical 3.5" SPI hats (SPI0 + DC/RST/touch IRQ)
-            if pin in (7, 8, 9, 10, 11, 17, 24, 25):
+            # GPIO the 3.5" SPI hat drives (SPI0 + data/command + reset): never usable.
+            if pin in (7, 8, 9, 10, 11, 24, 25):
                 errs.append(f"pins.{name}=GPIO{pin} is used by the 3.5\" SPI display hat")
+            elif pin == 17:
+                # The hat's touch-interrupt line. Touch is not used, so a button may
+                # share it, but the touch driver may hold the pin (see WIRING.md).
+                import logging
+                logging.getLogger("footmop.config").warning(
+                    "pins.%s=GPIO17 is the screen's touch-interrupt line; if the app reports "
+                    "'GPIO busy', disable the screen's touch driver (docs/WIRING.md)", name)
         if errs:
             raise ConfigError("Invalid configuration:\n  - " + "\n  - ".join(errs))
 
