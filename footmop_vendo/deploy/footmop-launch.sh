@@ -41,7 +41,9 @@ else
         if ls "${XDG_RUNTIME_DIR}"/wayland-* >/dev/null 2>&1 || [[ -S /tmp/.X11-unix/X0 ]]; then break; fi
         sleep 1
     done
-    if [[ -S "${XDG_RUNTIME_DIR}/wayland-0" || -S "${XDG_RUNTIME_DIR}/wayland-1" ]]; then
+    HAVE_QT_WAYLAND=0
+    ls /usr/lib/*/qt5/plugins/platforms/libqwayland* >/dev/null 2>&1 && HAVE_QT_WAYLAND=1
+    if [[ $HAVE_QT_WAYLAND == 1 && ( -S "${XDG_RUNTIME_DIR}/wayland-0" || -S "${XDG_RUNTIME_DIR}/wayland-1" ) ]]; then
         export QT_QPA_PLATFORM=wayland
         export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-$( [[ -S ${XDG_RUNTIME_DIR}/wayland-0 ]] && echo wayland-0 || echo wayland-1)}"
     else

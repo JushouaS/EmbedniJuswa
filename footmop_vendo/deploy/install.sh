@@ -8,7 +8,16 @@ set -euo pipefail
 if [[ $EUID -ne 0 ]]; then echo "Run with sudo." >&2; exit 1; fi
 SRC="$(cd "$(dirname "$0")/.." && pwd)"
 RUN_USER="${FOOTMOP_USER:-${SUDO_USER:-pi}}"
-MODE="${FOOTMOP_DISPLAY_MODE:-linuxfb}"
+# Display mode: auto-detect. Raspberry Pi OS *Desktop* boots to graphical.target
+# -> run as a full-screen window on the desktop; Lite -> draw on the framebuffer.
+if [[ -z "${FOOTMOP_DISPLAY_MODE:-}" ]]; then
+    if [[ "$(systemctl get-default 2>/dev/null)" == "graphical.target" ]]; then
+        FOOTMOP_DISPLAY_MODE=desktop
+    else
+        FOOTMOP_DISPLAY_MODE=linuxfb
+    fi
+fi
+MODE="$FOOTMOP_DISPLAY_MODE"
 APP=/opt/footmop
 ETC=/etc/footmop
 
@@ -18,6 +27,9 @@ id "$RUN_USER" >/dev/null
 echo "==> Packages"
 apt-get update -qq
 apt-get install -y python3-pyqt5 python3-lgpio fonts-dejavu-core sqlite3
+if [[ "$MODE" == "desktop" ]]; then
+    apt-get install -y qtwayland5 || true    # lets Qt5 open a window on the Wayland desktop
+fi
 
 echo "==> Application files -> $APP"
 mkdir -p "$APP"
@@ -40,6 +52,10 @@ FOOTMOP_DISPLAY_MODE=$MODE
 FOOTMOP_CONFIG=$ETC/config.toml
 #FOOTMOP_FB=/dev/fb1
 EOF
+else
+    # Re-install: keep the file but correct the display mode to what this Pi runs.
+    sed -i "s/^FOOTMOP_DISPLAY_MODE=.*/FOOTMOP_DISPLAY_MODE=$MODE/" "$ETC/footmop.env"
+    if [[ "$MODE" == "desktop" ]]; then sed -i 's/^FOOTMOP_FB=/#FOOTMOP_FB=/' "$ETC/footmop.env"; fi
 fi
 chown root:"$RUN_USER" "$ETC/config.toml" "$ETC/footmop.env"
 chmod 640 "$ETC/config.toml" "$ETC/footmop.env"
@@ -90,6 +106,15 @@ cat <<EOF
     If the servo spins the wrong way, set servo_spin_us = 1000 in config.toml.
  3. Make sure the 3.5" screen driver from your screen's vendor is set up
     (see docs/DISPLAY_SETUP.md), then reboot.
+EOF
+if [[ "$MODE" == "desktop" ]]; then cat <<EOF
+    DESKTOP detected: the kiosk opens as a full-screen window on the desktop.
+    Turn on desktop auto-login so it appears after power-up:
+       sudo raspi-config  ->  1 System Options -> S5 Boot / Auto Login
+                          ->  B4 Desktop Autologin
+EOF
+fi
+cat <<EOF
  4. Start / check:
        sudo systemctl start footmop
        journalctl -u footmop -f

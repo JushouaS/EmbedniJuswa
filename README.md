@@ -112,6 +112,7 @@ Full diagrams and tips: [`footmop_vendo/docs/WIRING.md`](footmop_vendo/docs/WIRI
 2. Choose these:
    - **Device:** Raspberry Pi 5
    - **OS:** *Raspberry Pi OS (other)* → **Raspberry Pi OS Lite (64-bit)**
+     (Raspberry Pi OS **with desktop** also works; the installer detects it.)
    - **Storage:** your microSD card
 3. Click **Edit settings** and set:
    - **Username:** for example `pi`, with a password.
@@ -176,6 +177,11 @@ The installer does the following:
 - creates the settings file `/etc/footmop/config.toml`;
 - sets up automatic mounting of USB flash drives;
 - makes the kiosk **start automatically at every boot**.
+
+**Using Raspberry Pi OS with the desktop?** The installer detects it and runs
+the kiosk as a full-screen window on the desktop. Turn on auto-login so it
+appears after every power-up: `sudo raspi-config` → **1 System Options** →
+**S5 Boot / Auto Login** → **B4 Desktop Autologin**, then `sudo reboot`.
 
 ### Step 7 – One-time settings
 

@@ -38,7 +38,7 @@ and fast boot.
 - To list the framebuffers and their drivers, run
   `cat /sys/class/graphics/fb*/name`.
 
-### B) `desktop` (Raspberry Pi OS Desktop with auto-login)
+### B) `desktop` (Raspberry Pi OS Desktop with auto-login) – picked automatically when the Pi has a desktop
 
 Use this if your vendor's driver only works through X11 or Wayland. The
 launcher waits for the session and runs the app fullscreen inside it.

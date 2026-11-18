@@ -112,6 +112,7 @@ You should see `46 passed`.
 2. Choose these:
    - **Device:** Raspberry Pi 5
    - **OS:** Raspberry Pi OS (other) → **Raspberry Pi OS Lite (64-bit)**
+     (Raspberry Pi OS **with desktop** also works; the installer detects it.)
 3. Click **Edit settings** and set:
    - **Username:** for example `pi`, with a password.
    - **Wi-Fi:** your network.
@@ -171,6 +172,11 @@ This does the following:
 - copies the app to `/opt/footmop`;
 - creates `/etc/footmop/config.toml`;
 - sets the app to start automatically at boot.
+
+**Using Raspberry Pi OS with the desktop?** The installer detects it and runs
+the kiosk as a full-screen window on the desktop. Turn on auto-login so it
+appears after every power-up: `sudo raspi-config` → **1 System Options** →
+**S5 Boot / Auto Login** → **B4 Desktop Autologin**, then `sudo reboot`.
 
 ### 6. Set it up (one time)
 
