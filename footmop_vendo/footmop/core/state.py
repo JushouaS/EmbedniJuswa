@@ -86,6 +86,10 @@ class Kiosk:
         self._dispense_token = 0
         self._dispense_started = 0.0
         self._dispense_budget = 0.0
+        # What the dispenser is doing right now: "spinning", "pickup" (waiting for
+        # the customer to take footmop N out) or "blocked" (chute not clear yet).
+        self.dispense_phase = "spinning"
+        self.phase_index = 0
         self.admin_testing = False
         self.admin_message = ""
         self.admin_live: List[str] = []       # recent hardware events for the test page
@@ -358,18 +362,32 @@ class Kiosk:
         self.store.begin_dispense(self.session_id, self.qty, self.price, due)
         self.items_done = 0
         self._dispense_token += 1
-        self._dispense_started = self.clock()
-        d = self.cfg.dispense
-        per_item = (d.motor_on_ms + d.drop_wait_after_ms + d.cooldown_ms + d.hard_cutoff_margin_ms) / 1000
-        self._dispense_budget = self.qty * per_item + 10.0
+        self._arm_dispense_watchdog("spinning", 1)
         log.info("dispense start: session=%s qty=%d due=%d credit=%d", self.session_id,
                  self.qty, due, self.credit)
         self._enter(State.DISPENSING)
         self.fx.start_dispense(self.qty, self._dispense_token)
 
+    def _arm_dispense_watchdog(self, phase: str, index: int) -> None:
+        """Restart the 'dispenser went silent' timer for the current phase.
+        While waiting for the customer to take a footmop there is no limit."""
+        d = self.cfg.dispense
+        per_item = (d.motor_on_ms + d.drop_wait_after_ms + d.cooldown_ms + d.hard_cutoff_margin_ms) / 1000
+        self.dispense_phase, self.phase_index = phase, index
+        self._dispense_started = self.clock()
+        self._dispense_budget = per_item + 10.0 + (d.blocked_timeout_s if phase in ("spinning", "blocked") else 0)
+
+    def on_dispense_status(self, token: int, phase: str, index: int) -> None:
+        if token != self._dispense_token:
+            return
+        log.info("dispenser: %s (item %d)", phase, index)
+        self._arm_dispense_watchdog(phase, index)
+        self._changed()
+
     def on_item_dropped(self, token: int, count: int) -> None:
         if token != self._dispense_token:
             return
+        self._arm_dispense_watchdog(self.dispense_phase, count)
         if self.admin_testing:
             self.store.record_item_dispensed(None, "admin_test")
             self._changed()
@@ -506,9 +524,7 @@ class Kiosk:
         self.admin_testing = True
         self.admin_message = "Test dispensing 1 item..."
         self._dispense_token += 1
-        self._dispense_started = self.clock()
-        d = self.cfg.dispense
-        self._dispense_budget = (d.motor_on_ms + d.drop_wait_after_ms + d.hard_cutoff_margin_ms) / 1000 + 10
+        self._arm_dispense_watchdog("spinning", 1)
         self._changed()
         self.fx.start_dispense(1, self._dispense_token)
 
@@ -546,7 +562,7 @@ class Kiosk:
             if sec != self._last_warn_sec:
                 self._last_warn_sec = sec
                 changed = True
-        elif (s == State.DISPENSING or self.admin_testing) and \
+        elif (s == State.DISPENSING or self.admin_testing) and self.dispense_phase != "pickup" and \
                 now - self._dispense_started > self._dispense_budget:
             log.error("dispense watchdog expired")
             self.on_dispense_fault(self._dispense_token, "dispense_timeout",

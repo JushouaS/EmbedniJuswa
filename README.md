@@ -49,6 +49,11 @@ footmop drops.
   sensor sees the footmop drop, then stops immediately. If nothing drops
   within 5 s (a jam), the servo stops, the machine locks on **OUT OF
   SERVICE**, and it records how many items the customer is still owed.
+- **Multiple footmops: one at a time.** After each drop the screen says
+  **"Take it now"**. The next footmop drops only after the customer has taken
+  the previous one out (the IR sensor in the exit is clear again), until the
+  whole order is done. A hand in the chute before an order starts makes the
+  machine wait ("Please clear it") instead of spinning.
 - **"Still there?" timeout.** After 60 s with no button press, a 15 s
   countdown starts, then the order is cancelled.
 - **Survives power cuts.** Stock, every coin and every sale are saved to

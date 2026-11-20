@@ -99,8 +99,12 @@ class Walkthrough:
         a(250, self.hal.noise)
         a(400, self.shot("payment_partial"))
         self.coins(2)
-        a(500, self.expect(State.DISPENSING)); a(0, self.shot("dispensing"))
-        a(8600, self.expect(State.SUCCESS)); a(0, self.shot("success"))
+        a(300, self.expect(State.DISPENSING)); a(0, self.shot("dispensing"))
+        # footmop 1 lands in the exit -> "Take it now" until the customer takes it
+        a(700, lambda: None if self.k.dispense_phase == "pickup" else
+          self.failures.append(f"expected pickup phase, got {self.k.dispense_phase}"))
+        a(0, self.shot("dispensing_take_it"))
+        a(12000, self.expect(State.SUCCESS)); a(0, self.shot("success"))
         self.tap(W); a(300, self.expect(State.LANDING))
 
         # coins are refused outside the payment screen
@@ -110,7 +114,7 @@ class Walkthrough:
         self.tap(W); self.tap(B); self.tap(W)
         self.coins(2)
         a(400, self.expect(State.DISPENSING))
-        a(5600, self.expect(State.SUCCESS))
+        a(8000, self.expect(State.SUCCESS))
         self.tap(W); a(300, self.expect(State.LANDING))
 
         # GREEN at quantity 1 = cancel

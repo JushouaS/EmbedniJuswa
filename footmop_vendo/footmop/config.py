@@ -89,6 +89,10 @@ class DispenseCfg:
     motor_on_ms: float = 5000.0          # MAX spin time per item; no drop by then = jam
     stop_on_drop: bool = True            # stop the moment the IR sensor sees the footmop
     drop_wait_after_ms: float = 300.0    # keep watching the sensor after the servo stops
+    # --- multi-item orders: one at a time, the customer takes each one out first
+    wait_for_pickup: bool = True         # after a drop, wait until the IR sensor is clear again
+    pickup_settle_ms: float = 1000.0     # sensor must stay clear this long before the next drop
+    blocked_timeout_s: float = 60.0      # chute still blocked before an order starts -> fault
     cooldown_ms: float = 1000.0          # pause between items
     hard_cutoff_margin_ms: float = 500.0 # independent watchdog forces relay off
     sensor_enabled: bool = True          # TCRT5000 drop sensor present

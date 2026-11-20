@@ -316,9 +316,21 @@ class DispensingScreen(Screen):
 
     def refresh(self) -> None:
         k = self.ctx.kiosk
-        self.hero.set("Please wait", "Dispensing\u2026",
-                      f"{min(k.qty, k.items_done + 1)} of {k.qty}",
-                      "Don't reach into the chute yet", "")
+        if k.dispense_phase == "pickup":
+            # One at a time: footmop N is waiting in the exit; the next drops after it's taken.
+            left = k.qty - k.phase_index
+            self.hero.set(f"Footmop {k.phase_index} of {k.qty} is ready", "Take it now",
+                          f"{left} more after you take it",
+                          "The next one drops when the chute is clear",
+                          "Hands out of the chute until it drops")
+        elif k.dispense_phase == "blocked":
+            self.hero.set("Something is in the chute", "Please clear it",
+                          "Remove your hand or the item",
+                          "Dispensing starts when the chute is clear", "")
+        else:
+            self.hero.set("Please wait", "Dispensing\u2026",
+                          f"{min(k.qty, max(k.phase_index, k.items_done + 1))} of {k.qty}",
+                          "Don't reach into the chute yet", "")
 
 
 class SuccessScreen(Screen):

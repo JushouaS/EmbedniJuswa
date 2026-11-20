@@ -57,6 +57,9 @@ servo_freq_hz = 50
 motor_on_ms = 5000           # MAX spin time per footmop; no IR detection by then = jam -> OUT OF SERVICE
 stop_on_drop = true          # stop the servo the moment the IR sensor sees the footmop
 drop_wait_after_ms = 300     # keep watching the sensor briefly after the servo stops
+wait_for_pickup = true       # multi-item orders: drop one, wait until the customer takes it, then the next
+pickup_settle_ms = 1000      # IR sensor must stay clear this long before the next footmop drops
+blocked_timeout_s = 60       # chute blocked (hand/item) this long before an order starts -> OUT OF SERVICE
 cooldown_ms = 1000           # pause between footmops
 hard_cutoff_margin_ms = 500  # independent timer forces the servo off at motor_on_ms + this
 relay_active_high = true     # only for driver = "relay"

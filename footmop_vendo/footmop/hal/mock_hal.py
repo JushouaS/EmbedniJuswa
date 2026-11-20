@@ -24,6 +24,7 @@ log = logging.getLogger("footmop.hal.mock")
 
 class MockHAL(HAL):
     DROP_DELAY_S = 0.6
+    PICKUP_DELAY_S = 1.5
 
     def __init__(self, cfg: Config):
         super().__init__()
@@ -32,6 +33,7 @@ class MockHAL(HAL):
         self.coin_enabled = True
         self.jam = False
         self.blocked = False
+        self.item_present = False
         self._on_button: Optional[ButtonCallback] = None
         self._on_edge: Optional[EdgeCallback] = None
         self._lock = threading.Lock()
@@ -101,9 +103,21 @@ class MockHAL(HAL):
             self.motor_history.append((time.monotonic(), on))
         log.info("mock: motor %s", "ON" if on else "OFF")
         if on and not self.jam:
-            t = threading.Timer(self.DROP_DELAY_S, self._signal_drop)
+            t = threading.Timer(self.DROP_DELAY_S, self._mock_drop)
             t.daemon = True
             t.start()
+
+    def _mock_drop(self) -> None:
+        """The footmop lands in the exit in front of the IR sensor; the simulated
+        customer takes it out PICKUP_DELAY_S later (press T to take it sooner)."""
+        self.item_present = True
+        self._signal_drop()
+        t = threading.Timer(self.PICKUP_DELAY_S, self.take_item)
+        t.daemon = True
+        t.start()
+
+    def take_item(self) -> None:
+        self.item_present = False
 
     def force_motor_off(self) -> None:
         with self._lock:
@@ -115,7 +129,7 @@ class MockHAL(HAL):
         self.coin_enabled = enabled
 
     def drop_sensor_active(self) -> bool:
-        return self.blocked
+        return self.blocked or self.item_present
 
     def read_inputs(self) -> Dict[str, int]:
         return dict(self.levels)

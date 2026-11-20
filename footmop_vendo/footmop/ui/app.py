@@ -56,6 +56,7 @@ class Bridge(QObject):
     coin = pyqtSignal(int, int)
     coin_reject = pyqtSignal(str)
     item = pyqtSignal(int, int)
+    status = pyqtSignal(int, str, int)
     done = pyqtSignal(int)
     fault = pyqtSignal(int, str, str)
 
@@ -223,6 +224,8 @@ class MainWindow(QWidget):
             self.mock.toggle_jam()
         elif key == Qt.Key_B:
             self.mock.toggle_blocked()
+        elif key == Qt.Key_T:
+            self.mock.take_item()
         elif key == Qt.Key_Escape:
             QApplication.quit()
 
@@ -243,6 +246,7 @@ class App:
         b = self.bridge
         self.dispenser = Dispenser(hal, cfg.dispense,
                                    on_item=lambda t, n: b.item.emit(t, n),
+                                   on_status=lambda t, ph, n: b.status.emit(t, ph, n),
                                    on_done=lambda t: b.done.emit(t),
                                    on_fault=lambda t, c, m: b.fault.emit(t, c, m))
         self.kiosk = Kiosk(cfg, store, HardwareEffects(hal, self.dispenser))
@@ -252,6 +256,7 @@ class App:
         b.coin.connect(k.on_coin, Q)
         b.coin_reject.connect(k.on_coin_rejected, Q)
         b.item.connect(k.on_item_dropped, Q)
+        b.status.connect(k.on_dispense_status, Q)
         b.done.connect(k.on_dispense_done, Q)
         b.fault.connect(k.on_dispense_fault, Q)
         self.coin_worker = CoinWorker(cfg.coin, on_coin=lambda v, p: b.coin.emit(v, p),

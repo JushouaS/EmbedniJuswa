@@ -74,6 +74,11 @@ the physical buttons, labelled with what each button does right now.
   2. The MG995 continuous servo spins until the IR sensor sees the footmop
      drop, then stops immediately.
   3. No drop within 5 s = jam: the servo stops and the machine locks.
+  4. Multi-item orders go **one at a time**: after each drop the screen shows
+     "Take it now", and the next footmop drops only after the customer has
+     taken it out (IR sensor clear for `pickup_settle_ms`). No time limit
+     while waiting. Before an order starts, a blocked sensor (hand or old
+     item) shows "Please clear it" and faults after `blocked_timeout_s`.
   4. The stock count goes down only for confirmed items.
 - **Servo safety:** an independent hard-cutoff timer, plus `finally` blocks,
   a crash hook, and `ExecStopPost` all stop the servo (no pulses = no spin). A watchdog in

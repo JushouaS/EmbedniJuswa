@@ -490,7 +490,7 @@ def test_dispenser_jam():
 
 
 def test_dispenser_chute_blocked():
-    r = _run_dispenser(SimHAL(blocked=True), 1)
+    r = _run_dispenser(SimHAL(blocked=True), 1, blocked_timeout_s=0.3)
     assert r["fault"] == "chute_blocked"
 
 
@@ -635,3 +635,90 @@ def test_green_on_gpio17_is_allowed_but_screen_pins_are_not():
     c.pins.drop_sensor = 25              # screen reset line: refused
     with pytest.raises(ConfigError):
         c.validate()
+
+
+
+# ------------------------------------------- one-at-a-time multi-item pickup
+class RestingHAL(SimHAL):
+    """The footmop lands in front of the IR sensor and stays there until taken."""
+
+    def __init__(self, take_after=0.4):
+        super().__init__(drop_delay=0.05)
+        self.take_after = take_after
+        self.present = False
+        self.motor_on_times = []
+
+    def drop_sensor_active(self):
+        return self.present or self.blocked
+
+    def set_motor(self, on):
+        if on:
+            self.motor_on_times.append(time.monotonic())
+        self.motor = on
+        self.history.append(on)
+        if on and self.drop:
+            def fire():
+                self.present = True
+                self.n += 1
+                self.ev.set()
+                threading.Timer(self.take_after, self.take).start()
+            threading.Timer(self.delay, fire).start()
+
+    def take(self):
+        self.taken_at = getattr(self, "taken_at", []) + [time.monotonic()]
+        self.present = False
+
+
+def test_multi_item_waits_for_customer_to_take_each_one():
+    hal = RestingHAL(take_after=0.4)
+    cfg = DispenseCfg(motor_on_ms=2000, drop_wait_after_ms=100, cooldown_ms=10, pickup_settle_ms=100)
+    events, done = [], threading.Event()
+    d = Dispenser(hal, cfg, lambda t, i: events.append(("item", i)), lambda t: done.set(),
+                  lambda t, c, m: (events.append(("fault", c)), done.set()),
+                  on_status=lambda t, ph, i: events.append((ph, i)))
+    d.start(3, 1)
+    assert done.wait(10)
+    assert ("fault", "chute_blocked") not in events
+    # spin 1 -> drop 1 -> wait for pickup of 1 -> spin 2 -> ... -> drop 3 -> done
+    assert events == [("spinning", 1), ("item", 1), ("pickup", 1), ("spinning", 2), ("item", 2),
+                      ("pickup", 2), ("spinning", 3), ("item", 3)]
+    # each next spin starts only after the previous footmop was taken out
+    for take_t, next_spin in zip(hal.taken_at[:2], hal.motor_on_times[1:]):
+        assert next_spin >= take_t
+    assert hal.motor is False
+
+
+def test_hand_in_chute_before_order_waits_then_starts():
+    hal = RestingHAL()
+    hal.blocked = True                   # customer's hand in the exit hole
+    cfg = DispenseCfg(motor_on_ms=2000, drop_wait_after_ms=100, cooldown_ms=10,
+                      pickup_settle_ms=100, blocked_timeout_s=5)
+    events, done = [], threading.Event()
+    d = Dispenser(hal, cfg, lambda t, i: events.append(("item", i)), lambda t: done.set(),
+                  lambda t, c, m: (events.append(("fault", c)), done.set()),
+                  on_status=lambda t, ph, i: events.append((ph, i)))
+    d.start(1, 1)
+    time.sleep(0.3)
+    assert events == [("blocked", 1)] and hal.motor_on_times == []   # servo did NOT start
+    hal.blocked = False                  # hand removed
+    assert done.wait(5)
+    assert events == [("blocked", 1), ("spinning", 1), ("item", 1)]
+
+
+def test_kiosk_watchdog_paused_while_waiting_for_pickup(k):
+    k.action("start")
+    k.action("inc")
+    k.action("confirm")
+    pay(k, 50)
+    _, tok = k.fx.dispenses[-1]
+    k.on_dispense_status(tok, "spinning", 1)
+    k.on_item_dropped(tok, 1)
+    k.on_dispense_status(tok, "pickup", 1)
+    assert k.dispense_phase == "pickup"
+    k.clock.t += 600                      # customer takes 10 minutes: no fault
+    k.tick()
+    assert k.state == State.DISPENSING
+    k.on_dispense_status(tok, "spinning", 2)
+    k.clock.t += 120                      # but a silent dispenser while spinning is a fault
+    k.tick()
+    assert k.state == State.FAULT

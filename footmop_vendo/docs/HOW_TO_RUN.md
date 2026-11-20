@@ -56,6 +56,7 @@ A 480×320 window opens. That is the same size as the 3.5" screen.
 | **N** | Send electrical noise on the coin wire (should be ignored) |
 | **J** | Turn a dispenser jam on/off. The next purchase fails and locks the machine |
 | **B** | Turn "chute blocked" on/off |
+| **T** | Take the footmop out of the exit (otherwise the simulator takes it after 1.5 s) |
 | Tap **← → ← → ←** quickly | Open admin (PIN **0412**) |
 | Menu → **Exit admin** | Leave admin |
 | **Esc** | Quit |

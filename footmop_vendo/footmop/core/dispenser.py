@@ -1,7 +1,10 @@
 """Dispense sequence, run on a worker thread one item at a time.
 
 Per item:
-  1. Pre-check: the drop sensor must be clear (else chute blocked/sensor fault).
+  1. Wait until the IR sensor is clear: before the first item (a hand or an
+     old item in the chute -> "please clear the chute", fault after
+     blocked_timeout_s) and, for multi-item orders, after every drop until the
+     customer has TAKEN that footmop out (no time limit), then pickup_settle_ms.
   2. Arm the drop latch, relay ON, start an independent hard-cutoff timer.
   3. Run the motor for motor_on_ms (or until the drop if stop_on_drop).
   4. Relay OFF, then keep watching the sensor for drop_wait_after_ms.
@@ -15,7 +18,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Callable
+from typing import Callable, Optional
 
 from ..config import DispenseCfg
 
@@ -26,8 +29,10 @@ class Dispenser:
     def __init__(self, hal, cfg: DispenseCfg,
                  on_item: Callable[[int, int], None],
                  on_done: Callable[[int], None],
-                 on_fault: Callable[[int, str, str], None]):
+                 on_fault: Callable[[int, str, str], None],
+                 on_status: Optional[Callable[[int, str, int], None]] = None):
         self.hal = hal
+        self.on_status = on_status or (lambda token, phase, index: None)
         self.cfg = cfg
         self.on_item = on_item
         self.on_done = on_done
@@ -53,14 +58,28 @@ class Dispenser:
     # ------------------------------------------------------------------
     def _run(self, qty: int, token: int) -> None:
         try:
+            c = self.cfg
+            if c.sensor_enabled:
+                # Hand or an old item in the exit before the order starts: wait (then fault).
+                code, msg = self._wait_clear(token, "blocked", 1, c.blocked_timeout_s)
+                if code:
+                    self.on_fault(token, code, msg)
+                    return
             for i in range(1, qty + 1):
+                self.on_status(token, "spinning", i)
                 code, msg = self._one_item(i, qty)
                 if code:
                     self.on_fault(token, code, msg)
                     return
                 self.on_item(token, i)
                 if i < qty:
-                    time.sleep(self.cfg.cooldown_ms / 1000)
+                    if c.sensor_enabled and c.wait_for_pickup:
+                        # One at a time: the customer takes footmop i out before the next drops.
+                        code, msg = self._wait_clear(token, "pickup", i, None)
+                        if code:
+                            self.on_fault(token, code, msg)
+                            return
+                    time.sleep(c.cooldown_ms / 1000)
             self.on_done(token)
         except Exception as exc:  # pragma: no cover - defensive
             log.exception("dispenser crashed")
@@ -71,11 +90,37 @@ class Dispenser:
             with self._lock:
                 self._busy = False
 
+    def _wait_clear(self, token: int, phase: str, index: int, timeout_s):
+        """Wait until the IR sensor has been clear for pickup_settle_ms.
+        phase "blocked": before an order (hand/old item in the chute), times out.
+        phase "pickup":  waiting for the customer to take footmop `index` out."""
+        c = self.cfg
+        settle = c.pickup_settle_ms / 1000
+        start = time.monotonic()
+        clear_since = None
+        announced = False
+        while True:
+            now = time.monotonic()
+            if self.hal.drop_sensor_active():
+                clear_since = None
+                if not announced:
+                    announced = True
+                    log.info("waiting for chute to clear (%s, item %d)", phase, index)
+                    self.on_status(token, phase, index)
+                if timeout_s is not None and now - start > timeout_s:
+                    return ("chute_blocked",
+                            f"IR sensor stayed blocked for {timeout_s:.0f} s before dispensing "
+                            "(hand or item in the chute, or sensor fault).")
+            else:
+                if clear_since is None:
+                    clear_since = now
+                # Item fell past the sensor / was never there: no need to wait the settle time.
+                if not announced or now - clear_since >= settle:
+                    return (None, None)
+            time.sleep(0.05)
+
     def _one_item(self, i: int, qty: int):
         c = self.cfg
-        if c.sensor_enabled and self.hal.drop_sensor_active():
-            return ("chute_blocked",
-                    "Drop sensor is blocked before dispensing (item stuck in chute or sensor fault).")
 
         self.hal.arm_drop()
         cutoff = threading.Timer((c.motor_on_ms + c.hard_cutoff_margin_ms) / 1000,
